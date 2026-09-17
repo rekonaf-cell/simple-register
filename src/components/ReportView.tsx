@@ -24,6 +24,7 @@ export default function ReportView() {
   const [closingBusy, setClosingBusy] = useState(false);
 
   const totalSales = orders.reduce((sum, o) => sum + o.total, 0);
+  const totalGuests = orders.reduce((sum, o) => sum + o.party_size, 0);
   const totalsByMethod: Partial<Record<PaymentMethod, number>> = {};
   let taxBreakdown = EMPTY_TAX_BREAKDOWN;
   for (const o of orders) {
@@ -69,7 +70,9 @@ export default function ReportView() {
                   精算済み（{new Date(closing.closed_at).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" })}）
                 </p>
                 <p className="text-3xl font-bold text-zinc-900">{formatYen(closing.total_sales)}</p>
-                <p className="text-xs text-zinc-500">{closing.order_count}件</p>
+                <p className="text-xs text-zinc-500">
+                  {closing.order_count}組 ・ {closing.total_guests ?? 0}名
+                </p>
                 <div className="mt-2 grid grid-cols-3 gap-2 text-sm">
                   {(Object.entries(closing.totals_by_method) as [PaymentMethod, number][])
                     .filter(([, amount]) => amount > 0)
@@ -90,7 +93,9 @@ export default function ReportView() {
               <div className="flex flex-col gap-2">
                 <p className="text-sm text-zinc-500">未精算（{date}の集計）</p>
                 <p className="text-3xl font-bold text-zinc-900">{formatYen(totalSales)}</p>
-                <p className="text-xs text-zinc-500">{orders.length}件</p>
+                <p className="text-xs text-zinc-500">
+                  {orders.length}組 ・ {totalGuests}名
+                </p>
                 <div className="mt-2 grid grid-cols-3 gap-2 text-sm">
                   {(Object.entries(totalsByMethod) as [PaymentMethod, number][])
                     .filter(([, amount]) => amount > 0)

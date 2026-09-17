@@ -114,6 +114,7 @@ export type DailyClosing = {
   business_date: string;
   closed_at: string;
   order_count: number;
+  total_guests: number;
   total_sales: number;
   totals_by_method: Partial<Record<PaymentMethod, number>>;
   tax_breakdown: TaxBreakdown;

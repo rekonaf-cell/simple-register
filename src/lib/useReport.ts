@@ -108,6 +108,7 @@ export function useDailyClosing(businessDate: string) {
 
 export async function closeDay(businessDate: string, orders: Order[]) {
   const totalSales = orders.reduce((sum, order) => sum + order.total, 0);
+  const totalGuests = orders.reduce((sum, order) => sum + order.party_size, 0);
   const totalsByMethod: Record<string, number> = {};
   let taxBreakdown = EMPTY_TAX_BREAKDOWN;
   for (const order of orders) {
@@ -120,6 +121,7 @@ export async function closeDay(businessDate: string, orders: Order[]) {
   const { error } = await supabase.from("daily_closings").insert({
     business_date: businessDate,
     order_count: orders.length,
+    total_guests: totalGuests,
     total_sales: totalSales,
     totals_by_method: totalsByMethod,
     tax_breakdown: taxBreakdown,
