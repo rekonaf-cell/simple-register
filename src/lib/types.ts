@@ -1,4 +1,4 @@
-export const CATEGORIES = ["お好み焼", "焼そば", "一品", "ソフトドリンク", "アルコール"] as const;
+export const CATEGORIES = ["お好み焼", "焼そば", "ネギ焼", "一品", "ソフトドリンク", "アルコール"] as const;
 export type Category = (typeof CATEGORIES)[number];
 
 export const DEFAULT_CATEGORY: Category = "一品";
