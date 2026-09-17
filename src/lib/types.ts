@@ -46,6 +46,21 @@ export type OrderLine = {
   qty: number;
   toppings: OrderLineTopping[];
   served: boolean;
+  taxRate: number;
+};
+
+export const TAKEOUT_TAX_RATE = 0.08;
+export const STANDARD_TAX_RATE = 0.1;
+
+export function taxRateForCategory(category: Category): number {
+  return category === "テイクアウト" ? TAKEOUT_TAX_RATE : STANDARD_TAX_RATE;
+}
+
+export type TaxBreakdown = {
+  taxable8: number;
+  tax8: number;
+  taxable10: number;
+  tax10: number;
 };
 
 export type OrderStatus = "open" | "completed";
@@ -101,4 +116,5 @@ export type DailyClosing = {
   order_count: number;
   total_sales: number;
   totals_by_method: Partial<Record<PaymentMethod, number>>;
+  tax_breakdown: TaxBreakdown;
 };

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "./supabaseClient";
 import type { DailyClosing, Order } from "./types";
+import { addTaxBreakdowns, computeTaxBreakdown, EMPTY_TAX_BREAKDOWN } from "./useOrders";
 
 export function todayJst(): string {
   return new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" });
@@ -108,10 +109,12 @@ export function useDailyClosing(businessDate: string) {
 export async function closeDay(businessDate: string, orders: Order[]) {
   const totalSales = orders.reduce((sum, order) => sum + order.total, 0);
   const totalsByMethod: Record<string, number> = {};
+  let taxBreakdown = EMPTY_TAX_BREAKDOWN;
   for (const order of orders) {
     for (const payment of order.payments) {
       totalsByMethod[payment.method] = (totalsByMethod[payment.method] ?? 0) + payment.amount;
     }
+    taxBreakdown = addTaxBreakdowns(taxBreakdown, computeTaxBreakdown(order.lines));
   }
 
   const { error } = await supabase.from("daily_closings").insert({
@@ -119,6 +122,7 @@ export async function closeDay(businessDate: string, orders: Order[]) {
     order_count: orders.length,
     total_sales: totalSales,
     totals_by_method: totalsByMethod,
+    tax_breakdown: taxBreakdown,
   });
   if (error) throw error;
 }

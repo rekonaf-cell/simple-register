@@ -8,6 +8,7 @@ import {
   PAYMENT_METHODS,
   PAYMENT_METHOD_LABELS,
   TOPPING_CATEGORIES,
+  taxRateForCategory,
   type Category,
   type MenuItem,
   type OrderLineTopping,
@@ -15,7 +16,15 @@ import {
   type PaymentSplit,
 } from "@/lib/types";
 import { useMenu } from "@/lib/useMenu";
-import { completeOrder, deleteOrder, lineUnitPrice, updateOrderLines, updateOrderMeta, useOrder } from "@/lib/useOrders";
+import {
+  completeOrder,
+  computeTaxBreakdown,
+  deleteOrder,
+  lineUnitPrice,
+  updateOrderLines,
+  updateOrderMeta,
+  useOrder,
+} from "@/lib/useOrders";
 import { useToppings } from "@/lib/useToppings";
 
 function formatYen(amount: number) {
@@ -64,6 +73,7 @@ export default function OrderEditor({ orderId }: { orderId: string }) {
   const totalCount = lines.reduce((sum, l) => sum + l.qty, 0);
   const allServed = lines.length > 0 && lines.every((l) => l.served);
   const unservedCount = lines.filter((l) => !l.served).length;
+  const tax = computeTaxBreakdown(lines);
 
   function addItemToOrder(item: MenuItem, chosenToppings: OrderLineTopping[]) {
     const existing = lines.find(
@@ -81,6 +91,7 @@ export default function OrderEditor({ orderId }: { orderId: string }) {
             qty: 1,
             toppings: chosenToppings,
             served: false,
+            taxRate: taxRateForCategory(item.category),
           },
         ];
     updateOrderLines(orderId, next);
@@ -424,6 +435,11 @@ export default function OrderEditor({ orderId }: { orderId: string }) {
               <div className="flex items-center justify-between">
                 <span className="text-sm text-zinc-500">お会計合計</span>
                 <span className="text-xl font-bold text-zinc-900">{formatYen(total)}</span>
+              </div>
+              <div className="text-right text-xs text-zinc-400">
+                {tax.taxable10 > 0 && <span>10%対象 {formatYen(tax.taxable10)}（内税{formatYen(tax.tax10)}）</span>}
+                {tax.taxable10 > 0 && tax.taxable8 > 0 && <span> ・ </span>}
+                {tax.taxable8 > 0 && <span>8%対象 {formatYen(tax.taxable8)}（内税{formatYen(tax.tax8)}）</span>}
               </div>
 
               {payments.length > 0 && (

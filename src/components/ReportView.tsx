@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { PAYMENT_METHOD_LABELS, type PaymentMethod } from "@/lib/types";
+import { addTaxBreakdowns, computeTaxBreakdown, EMPTY_TAX_BREAKDOWN } from "@/lib/useOrders";
 import { closeDay, todayJst, useCompletedOrders, useDailyClosing } from "@/lib/useReport";
 
 function formatYen(amount: number) {
@@ -24,10 +25,12 @@ export default function ReportView() {
 
   const totalSales = orders.reduce((sum, o) => sum + o.total, 0);
   const totalsByMethod: Partial<Record<PaymentMethod, number>> = {};
+  let taxBreakdown = EMPTY_TAX_BREAKDOWN;
   for (const o of orders) {
     for (const p of o.payments) {
       totalsByMethod[p.method] = (totalsByMethod[p.method] ?? 0) + p.amount;
     }
+    taxBreakdown = addTaxBreakdowns(taxBreakdown, computeTaxBreakdown(o.lines));
   }
 
   async function handleCloseDay() {
@@ -77,6 +80,11 @@ export default function ReportView() {
                       </div>
                     ))}
                 </div>
+                <div className="mt-1 border-t border-zinc-100 pt-2 text-xs text-zinc-500">
+                  内消費税　10%対象 {formatYen(closing.tax_breakdown?.taxable10 ?? 0)}（税
+                  {formatYen(closing.tax_breakdown?.tax10 ?? 0)}） ・ 8%対象{" "}
+                  {formatYen(closing.tax_breakdown?.taxable8 ?? 0)}（税{formatYen(closing.tax_breakdown?.tax8 ?? 0)}）
+                </div>
               </div>
             ) : (
               <div className="flex flex-col gap-2">
@@ -92,6 +100,10 @@ export default function ReportView() {
                         <p className="font-semibold">{formatYen(amount)}</p>
                       </div>
                     ))}
+                </div>
+                <div className="mt-1 border-t border-zinc-100 pt-2 text-xs text-zinc-500">
+                  内消費税　10%対象 {formatYen(taxBreakdown.taxable10)}（税{formatYen(taxBreakdown.tax10)}） ・
+                  8%対象 {formatYen(taxBreakdown.taxable8)}（税{formatYen(taxBreakdown.tax8)}）
                 </div>
                 <button
                   onClick={handleCloseDay}
