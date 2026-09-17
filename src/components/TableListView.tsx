@@ -14,14 +14,14 @@ export default function TableListView() {
   const { orders, loading } = useOpenOrders();
   const [showForm, setShowForm] = useState(false);
   const [tableNumber, setTableNumber] = useState("");
-  const [partySize, setPartySize] = useState(1);
+  const [partySize, setPartySize] = useState("1");
   const [creating, setCreating] = useState(false);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     setCreating(true);
     try {
-      const id = await createOrder(tableNumber, partySize);
+      const id = await createOrder(tableNumber, Math.max(1, parseInt(partySize, 10) || 1));
       router.push(`/order/${id}`);
     } finally {
       setCreating(false);
@@ -57,11 +57,11 @@ export default function TableListView() {
           <label className="w-20">
             <span className="mb-1 block text-xs font-semibold text-zinc-500">人数</span>
             <input
-              type="number"
+              type="text"
               inputMode="numeric"
-              min={1}
               value={partySize}
-              onChange={(e) => setPartySize(Math.max(1, Number(e.target.value) || 1))}
+              onChange={(e) => setPartySize(e.target.value.replace(/[^0-9]/g, ""))}
+              onBlur={() => setPartySize((v) => (v === "" ? "1" : v))}
               onFocus={(e) => e.target.select()}
               className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
             />

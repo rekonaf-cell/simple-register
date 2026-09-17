@@ -122,13 +122,19 @@ export default function OrderEditor({ orderId }: { orderId: string }) {
         <label className="w-24">
           <span className="mb-1 block text-xs font-semibold text-zinc-500">人数</span>
           <input
-            type="number"
+            key={`party-${orderId}`}
+            type="text"
             inputMode="numeric"
-            min={1}
-            value={order.party_size}
-            onChange={(e) =>
-              updateOrderMeta(orderId, { party_size: Math.max(1, Number(e.target.value) || 1) })
-            }
+            defaultValue={order.party_size}
+            onChange={(e) => {
+              const cleaned = e.target.value.replace(/[^0-9]/g, "");
+              if (cleaned) updateOrderMeta(orderId, { party_size: Math.max(1, Number(cleaned)) });
+            }}
+            onBlur={(e) => {
+              if (!e.target.value.replace(/[^0-9]/g, "")) {
+                e.target.value = String(order.party_size);
+              }
+            }}
             onFocus={(e) => e.target.select()}
             className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
           />
