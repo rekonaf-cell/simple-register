@@ -1,0 +1,147 @@
+"use client";
+
+import { useState } from "react";
+import { PAYMENT_METHOD_LABELS } from "@/lib/types";
+import { closeDay, todayJst, useCompletedOrders, useDailyClosing } from "@/lib/useReport";
+
+function formatYen(amount: number) {
+  return `¥${amount.toLocaleString("ja-JP")}`;
+}
+
+function formatTime(iso: string) {
+  return new Date(iso).toLocaleTimeString("ja-JP", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Asia/Tokyo",
+  });
+}
+
+export default function ReportView() {
+  const [date, setDate] = useState(todayJst());
+  const { orders, loading: ordersLoading } = useCompletedOrders(date);
+  const { closing, loading: closingLoading } = useDailyClosing(date);
+  const [closingBusy, setClosingBusy] = useState(false);
+
+  const totals = orders.reduce(
+    (acc, o) => {
+      acc.total += o.total;
+      if (o.payment_method === "cash") acc.cash += o.total;
+      else if (o.payment_method === "card") acc.card += o.total;
+      else acc.other += o.total;
+      return acc;
+    },
+    { total: 0, cash: 0, card: 0, other: 0 }
+  );
+
+  async function handleCloseDay() {
+    if (orders.length === 0) return;
+    if (!window.confirm(`${date} の閉店処理を確定します。件数: ${orders.length}件 / 合計: ${formatYen(totals.total)}\nよろしいですか？`)) return;
+    setClosingBusy(true);
+    try {
+      await closeDay(date, orders);
+    } finally {
+      setClosingBusy(false);
+    }
+  }
+
+  const loading = ordersLoading || closingLoading;
+
+  return (
+    <div className="flex flex-1 flex-col gap-4 p-4">
+      <label className="flex items-center gap-2">
+        <span className="text-sm font-semibold text-zinc-500">対象日</span>
+        <input
+          type="date"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+          className="rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+        />
+      </label>
+
+      {loading ? (
+        <p className="text-sm text-zinc-500">読み込み中...</p>
+      ) : (
+        <>
+          <section className="rounded-xl bg-white p-4 shadow">
+            {closing ? (
+              <div className="flex flex-col gap-2">
+                <p className="text-sm font-semibold text-emerald-600">
+                  精算済み（{new Date(closing.closed_at).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" })}）
+                </p>
+                <p className="text-3xl font-bold text-zinc-900">{formatYen(closing.total_sales)}</p>
+                <p className="text-xs text-zinc-500">{closing.order_count}件</p>
+                <div className="mt-2 grid grid-cols-3 gap-2 text-sm">
+                  <div>
+                    <p className="text-xs text-zinc-500">現金</p>
+                    <p className="font-semibold">{formatYen(closing.cash_total)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-zinc-500">カード</p>
+                    <p className="font-semibold">{formatYen(closing.card_total)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-zinc-500">その他</p>
+                    <p className="font-semibold">{formatYen(closing.other_total)}</p>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2">
+                <p className="text-sm text-zinc-500">未精算（{date}の集計）</p>
+                <p className="text-3xl font-bold text-zinc-900">{formatYen(totals.total)}</p>
+                <p className="text-xs text-zinc-500">{orders.length}件</p>
+                <div className="mt-2 grid grid-cols-3 gap-2 text-sm">
+                  <div>
+                    <p className="text-xs text-zinc-500">現金</p>
+                    <p className="font-semibold">{formatYen(totals.cash)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-zinc-500">カード</p>
+                    <p className="font-semibold">{formatYen(totals.card)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-zinc-500">その他</p>
+                    <p className="font-semibold">{formatYen(totals.other)}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={handleCloseDay}
+                  disabled={orders.length === 0 || closingBusy}
+                  className="mt-2 rounded-full bg-zinc-900 px-4 py-3 text-sm font-semibold text-white active:bg-zinc-700 disabled:opacity-40"
+                >
+                  閉店処理を確定
+                </button>
+              </div>
+            )}
+          </section>
+
+          <section>
+            <h2 className="mb-2 text-sm font-semibold text-zinc-500">会計履歴</h2>
+            {orders.length === 0 ? (
+              <p className="rounded-lg border border-dashed border-zinc-300 p-4 text-center text-sm text-zinc-500">
+                この日の会計履歴はありません。
+              </p>
+            ) : (
+              <ul className="divide-y divide-zinc-200 rounded-xl bg-white shadow">
+                {orders.map((o) => (
+                  <li key={o.id} className="flex items-center justify-between gap-2 px-3 py-2">
+                    <div>
+                      <p className="text-sm font-medium text-zinc-900">
+                        {o.table_number ? `${o.table_number}番` : "番号未設定"} ・ {o.party_size}名
+                      </p>
+                      <p className="text-xs text-zinc-500">
+                        {o.completed_at && formatTime(o.completed_at)} ・{" "}
+                        {o.payment_method ? PAYMENT_METHOD_LABELS[o.payment_method] : "―"}
+                      </p>
+                    </div>
+                    <p className="text-sm font-semibold text-zinc-900">{formatYen(o.total)}</p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        </>
+      )}
+    </div>
+  );
+}
