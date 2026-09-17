@@ -7,6 +7,7 @@ import {
   CATEGORIES,
   PAYMENT_METHODS,
   PAYMENT_METHOD_LABELS,
+  TOPPING_CATEGORIES,
   type Category,
   type MenuItem,
   type OrderLineTopping,
@@ -64,9 +65,34 @@ export default function OrderEditor({ orderId }: { orderId: string }) {
   const allServed = lines.length > 0 && lines.every((l) => l.served);
   const unservedCount = lines.filter((l) => !l.served).length;
 
-  function openPicker(item: MenuItem) {
-    setSelectedToppingIds(new Set());
-    setPickerItem(item);
+  function addItemToOrder(item: MenuItem, chosenToppings: OrderLineTopping[]) {
+    const existing = lines.find(
+      (l) => l.menuItemId === item.id && sameToppingSet(l.toppings, chosenToppings)
+    );
+    const next = existing
+      ? lines.map((l) => (l.id === existing.id ? { ...l, qty: l.qty + 1, served: false } : l))
+      : [
+          ...lines,
+          {
+            id: crypto.randomUUID(),
+            menuItemId: item.id,
+            name: item.name,
+            price: item.price,
+            qty: 1,
+            toppings: chosenToppings,
+            served: false,
+          },
+        ];
+    updateOrderLines(orderId, next);
+  }
+
+  function handleItemTap(item: MenuItem) {
+    if (TOPPING_CATEGORIES.has(item.category)) {
+      setSelectedToppingIds(new Set());
+      setPickerItem(item);
+    } else {
+      addItemToOrder(item, []);
+    }
   }
 
   function toggleTopping(id: string) {
@@ -83,25 +109,7 @@ export default function OrderEditor({ orderId }: { orderId: string }) {
     const chosenToppings: OrderLineTopping[] = toppings
       .filter((t) => selectedToppingIds.has(t.id))
       .map((t) => ({ id: t.id, name: t.name, price: t.price }));
-
-    const existing = lines.find(
-      (l) => l.menuItemId === pickerItem.id && sameToppingSet(l.toppings, chosenToppings)
-    );
-    const next = existing
-      ? lines.map((l) => (l.id === existing.id ? { ...l, qty: l.qty + 1, served: false } : l))
-      : [
-          ...lines,
-          {
-            id: crypto.randomUUID(),
-            menuItemId: pickerItem.id,
-            name: pickerItem.name,
-            price: pickerItem.price,
-            qty: 1,
-            toppings: chosenToppings,
-            served: false,
-          },
-        ];
-    updateOrderLines(orderId, next);
+    addItemToOrder(pickerItem, chosenToppings);
     setPickerItem(null);
   }
 
@@ -261,7 +269,7 @@ export default function OrderEditor({ orderId }: { orderId: string }) {
                   {items.map((item) => (
                     <button
                       key={item.id}
-                      onClick={() => openPicker(item)}
+                      onClick={() => handleItemTap(item)}
                       className="flex min-h-20 flex-col items-center justify-center gap-1 rounded-xl bg-white px-2 py-3 text-center shadow active:scale-95 active:bg-zinc-100"
                     >
                       <span className="text-sm font-medium text-zinc-900">{item.name}</span>

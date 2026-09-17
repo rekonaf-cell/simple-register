@@ -2,6 +2,7 @@ export const CATEGORIES = [
   "お好み焼",
   "焼そば",
   "ネギ焼",
+  "テイクアウト",
   "一品",
   "ソフトドリンク",
   "アルコール",
@@ -11,6 +12,8 @@ export const CATEGORIES = [
   "その他",
 ] as const;
 export type Category = (typeof CATEGORIES)[number];
+
+export const TOPPING_CATEGORIES: ReadonlySet<Category> = new Set(["お好み焼", "焼そば", "ネギ焼", "テイクアウト"]);
 
 export const DEFAULT_CATEGORY: Category = "一品";
 
