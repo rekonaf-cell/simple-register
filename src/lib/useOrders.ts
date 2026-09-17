@@ -127,6 +127,10 @@ export function taxExcludedTotal(breakdown: TaxBreakdown) {
   return breakdown.taxable8 - breakdown.tax8 + (breakdown.taxable10 - breakdown.tax10);
 }
 
+export function totalTax(breakdown: TaxBreakdown) {
+  return breakdown.tax8 + breakdown.tax10;
+}
+
 export async function createOrder(tableNumber: string, partySize: number): Promise<string> {
   const { data, error } = await supabase
     .from("orders")
