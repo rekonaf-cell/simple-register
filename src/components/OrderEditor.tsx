@@ -61,6 +61,8 @@ export default function OrderEditor({ orderId }: { orderId: string }) {
   const lines = order.lines;
   const total = order.total;
   const totalCount = lines.reduce((sum, l) => sum + l.qty, 0);
+  const allServed = lines.length > 0 && lines.every((l) => l.served);
+  const unservedCount = lines.filter((l) => !l.served).length;
 
   function openPicker(item: MenuItem) {
     setSelectedToppingIds(new Set());
@@ -86,7 +88,7 @@ export default function OrderEditor({ orderId }: { orderId: string }) {
       (l) => l.menuItemId === pickerItem.id && sameToppingSet(l.toppings, chosenToppings)
     );
     const next = existing
-      ? lines.map((l) => (l.id === existing.id ? { ...l, qty: l.qty + 1 } : l))
+      ? lines.map((l) => (l.id === existing.id ? { ...l, qty: l.qty + 1, served: false } : l))
       : [
           ...lines,
           {
@@ -96,6 +98,7 @@ export default function OrderEditor({ orderId }: { orderId: string }) {
             price: pickerItem.price,
             qty: 1,
             toppings: chosenToppings,
+            served: false,
           },
         ];
     updateOrderLines(orderId, next);
@@ -104,7 +107,7 @@ export default function OrderEditor({ orderId }: { orderId: string }) {
 
   function changeQty(lineId: string, delta: number) {
     const next = lines
-      .map((l) => (l.id === lineId ? { ...l, qty: l.qty + delta } : l))
+      .map((l) => (l.id === lineId ? { ...l, qty: l.qty + delta, served: delta > 0 ? false : l.served } : l))
       .filter((l) => l.qty > 0);
     updateOrderLines(orderId, next);
   }
@@ -130,7 +133,7 @@ export default function OrderEditor({ orderId }: { orderId: string }) {
   const canConfirm = remaining === 0 && payments.length > 0;
 
   function openCheckout() {
-    if (lines.length === 0) return;
+    if (lines.length === 0 || !allServed) return;
     setPayments([]);
     setActiveMethod(null);
     setAmountInput("");
@@ -290,6 +293,15 @@ export default function OrderEditor({ orderId }: { orderId: string }) {
                         （{line.toppings.map((t) => t.name).join("・")}）
                       </span>
                     )}
+                    {line.served ? (
+                      <span className="ml-2 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-600">
+                        提供済み
+                      </span>
+                    ) : (
+                      <span className="ml-2 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-600">
+                        未提供
+                      </span>
+                    )}
                   </p>
                   <p className="text-xs text-zinc-500">
                     {formatYen(lineUnitPrice(line))} × {line.qty} = {formatYen(lineUnitPrice(line) * line.qty)}
@@ -376,21 +388,28 @@ export default function OrderEditor({ orderId }: { orderId: string }) {
       <div className="fixed inset-x-0 bottom-0 border-t border-zinc-200 bg-white/95 p-4 backdrop-blur">
         <div className="mx-auto max-w-2xl">
           {!checkoutOpen ? (
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-xs text-zinc-500">
-                  {order.table_number && `${order.table_number}番 `}
-                  {order.party_size}名 ・ {totalCount}点
+            <div className="flex flex-col gap-2">
+              {lines.length > 0 && !allServed && (
+                <p className="text-xs font-medium text-red-600">
+                  未提供の商品があります（あと{unservedCount}点）。キッチン画面で提供済みにしてください。
                 </p>
-                <p className="text-2xl font-bold text-zinc-900">{formatYen(total)}</p>
+              )}
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs text-zinc-500">
+                    {order.table_number && `${order.table_number}番 `}
+                    {order.party_size}名 ・ {totalCount}点
+                  </p>
+                  <p className="text-2xl font-bold text-zinc-900">{formatYen(total)}</p>
+                </div>
+                <button
+                  onClick={openCheckout}
+                  disabled={lines.length === 0 || !allServed}
+                  className="rounded-full bg-zinc-900 px-6 py-3 text-sm font-semibold text-white active:bg-zinc-700 disabled:opacity-40"
+                >
+                  会計する
+                </button>
               </div>
-              <button
-                onClick={openCheckout}
-                disabled={lines.length === 0}
-                className="rounded-full bg-zinc-900 px-6 py-3 text-sm font-semibold text-white active:bg-zinc-700 disabled:opacity-40"
-              >
-                会計する
-              </button>
             </div>
           ) : (
             <div className="flex max-h-[70vh] flex-col gap-3 overflow-y-auto">

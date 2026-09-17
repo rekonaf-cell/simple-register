@@ -42,6 +42,7 @@ export type OrderLine = {
   price: number;
   qty: number;
   toppings: OrderLineTopping[];
+  served: boolean;
 };
 
 export type OrderStatus = "open" | "completed";
