@@ -60,6 +60,13 @@ export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   gift: "金券",
 };
 
+export type PaymentSplit = {
+  method: PaymentMethod;
+  amount: number;
+  received?: number;
+  change?: number;
+};
+
 export type Order = {
   id: string;
   table_number: string;
@@ -69,9 +76,7 @@ export type Order = {
   total: number;
   created_at: string;
   completed_at: string | null;
-  payment_method: PaymentMethod | null;
-  received_amount: number | null;
-  change_amount: number | null;
+  payments: PaymentSplit[];
 };
 
 export type DailyClosing = {

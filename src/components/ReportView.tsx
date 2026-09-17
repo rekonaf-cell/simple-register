@@ -25,8 +25,9 @@ export default function ReportView() {
   const totalSales = orders.reduce((sum, o) => sum + o.total, 0);
   const totalsByMethod: Partial<Record<PaymentMethod, number>> = {};
   for (const o of orders) {
-    const key = (o.payment_method ?? "other") as PaymentMethod;
-    totalsByMethod[key] = (totalsByMethod[key] ?? 0) + o.total;
+    for (const p of o.payments) {
+      totalsByMethod[p.method] = (totalsByMethod[p.method] ?? 0) + p.amount;
+    }
   }
 
   async function handleCloseDay() {
@@ -119,7 +120,11 @@ export default function ReportView() {
                       </p>
                       <p className="text-xs text-zinc-500">
                         {o.completed_at && formatTime(o.completed_at)} ・{" "}
-                        {o.payment_method ? PAYMENT_METHOD_LABELS[o.payment_method] : "―"}
+                        {o.payments.length > 0
+                          ? o.payments
+                              .map((p) => `${PAYMENT_METHOD_LABELS[p.method]} ${formatYen(p.amount)}`)
+                              .join(" + ")
+                          : "―"}
                       </p>
                     </div>
                     <p className="text-sm font-semibold text-zinc-900">{formatYen(o.total)}</p>

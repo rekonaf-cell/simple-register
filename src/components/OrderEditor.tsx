@@ -11,6 +11,7 @@ import {
   type MenuItem,
   type OrderLineTopping,
   type PaymentMethod,
+  type PaymentSplit,
 } from "@/lib/types";
 import { useMenu } from "@/lib/useMenu";
 import { completeOrder, deleteOrder, lineUnitPrice, updateOrderLines, updateOrderMeta, useOrder } from "@/lib/useOrders";
@@ -33,8 +34,9 @@ export default function OrderEditor({ orderId }: { orderId: string }) {
   const { order, loading } = useOrder(orderId);
   const [activeCategory, setActiveCategory] = useState<Category>(CATEGORIES[0]);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null);
-  const [receivedInput, setReceivedInput] = useState("");
+  const [payments, setPayments] = useState<PaymentSplit[]>([]);
+  const [activeMethod, setActiveMethod] = useState<PaymentMethod | null>(null);
+  const [amountInput, setAmountInput] = useState("");
   const [completing, setCompleting] = useState(false);
   const [pickerItem, setPickerItem] = useState<MenuItem | null>(null);
   const [selectedToppingIds, setSelectedToppingIds] = useState<Set<string>>(new Set());
@@ -111,28 +113,55 @@ export default function OrderEditor({ orderId }: { orderId: string }) {
     updateOrderLines(orderId, lines.filter((l) => l.id !== lineId));
   }
 
-  const receivedAmount = Number(receivedInput);
-  const changeAmount = receivedAmount - total;
-  const canConfirm =
-    paymentMethod !== null &&
-    (paymentMethod !== "cash" || (Number.isFinite(receivedAmount) && receivedAmount >= total));
+  const paidSoFar = payments.reduce((sum, p) => sum + p.amount, 0);
+  const remaining = total - paidSoFar;
+
+  const enteredAmount = Number(amountInput);
+  const legReceived = activeMethod === "cash" ? enteredAmount : null;
+  const legAttributed =
+    activeMethod === "cash" ? Math.min(Math.max(enteredAmount, 0), remaining) : enteredAmount;
+  const legChange = activeMethod === "cash" ? Math.max(0, enteredAmount - remaining) : 0;
+  const canAddLeg =
+    activeMethod !== null &&
+    (activeMethod === "cash"
+      ? Number.isFinite(enteredAmount) && enteredAmount > 0
+      : Number.isFinite(enteredAmount) && enteredAmount > 0 && enteredAmount <= remaining);
+
+  const canConfirm = remaining === 0 && payments.length > 0;
 
   function openCheckout() {
     if (lines.length === 0) return;
-    setPaymentMethod(null);
-    setReceivedInput("");
+    setPayments([]);
+    setActiveMethod(null);
+    setAmountInput("");
     setCheckoutOpen(true);
   }
 
+  function selectMethod(method: PaymentMethod) {
+    setActiveMethod(method);
+    setAmountInput(method === "cash" ? "" : String(remaining));
+  }
+
+  function addLeg() {
+    if (!canAddLeg || !activeMethod) return;
+    const split: PaymentSplit =
+      activeMethod === "cash"
+        ? { method: "cash", amount: legAttributed, received: legReceived ?? undefined, change: legChange }
+        : { method: activeMethod, amount: enteredAmount };
+    setPayments((prev) => [...prev, split]);
+    setActiveMethod(null);
+    setAmountInput("");
+  }
+
+  function removeLeg(index: number) {
+    setPayments((prev) => prev.filter((_, i) => i !== index));
+  }
+
   async function confirmCheckout() {
-    if (!canConfirm || !paymentMethod) return;
+    if (!canConfirm) return;
     setCompleting(true);
     try {
-      await completeOrder(orderId, {
-        paymentMethod,
-        receivedAmount: paymentMethod === "cash" ? receivedAmount : total,
-        changeAmount: paymentMethod === "cash" ? changeAmount : 0,
-      });
+      await completeOrder(orderId, payments);
       router.push("/");
     } finally {
       setCompleting(false);
@@ -364,49 +393,96 @@ export default function OrderEditor({ orderId }: { orderId: string }) {
               </button>
             </div>
           ) : (
-            <div className="flex flex-col gap-3">
+            <div className="flex max-h-[70vh] flex-col gap-3 overflow-y-auto">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-zinc-500">お会計</span>
+                <span className="text-sm text-zinc-500">お会計合計</span>
                 <span className="text-xl font-bold text-zinc-900">{formatYen(total)}</span>
               </div>
-              <div className="grid grid-cols-3 gap-2">
-                {PAYMENT_METHODS.map((method) => (
-                  <button
-                    key={method}
-                    onClick={() => setPaymentMethod(method)}
-                    className={`rounded-lg py-2 text-sm font-medium ${
-                      paymentMethod === method
-                        ? "bg-zinc-900 text-white"
-                        : "bg-zinc-100 text-zinc-600"
-                    }`}
-                  >
-                    {PAYMENT_METHOD_LABELS[method]}
-                  </button>
-                ))}
-              </div>
-              {paymentMethod === "cash" && (
-                <div className="flex items-center gap-2">
-                  <label className="flex-1">
-                    <span className="mb-1 block text-xs font-semibold text-zinc-500">預かり金額</span>
-                    <input
-                      type="number"
-                      inputMode="numeric"
-                      placeholder="例: 2000"
-                      value={receivedInput}
-                      onChange={(e) => setReceivedInput(e.target.value)}
-                      min={0}
-                      autoFocus
-                      className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
-                    />
-                  </label>
-                  <div className="flex-1 text-right">
-                    <span className="mb-1 block text-xs font-semibold text-zinc-500">お釣り</span>
-                    <span className="text-lg font-bold text-zinc-900">
-                      {Number.isFinite(changeAmount) && changeAmount >= 0 ? formatYen(changeAmount) : "―"}
-                    </span>
-                  </div>
-                </div>
+
+              {payments.length > 0 && (
+                <ul className="divide-y divide-zinc-200 rounded-lg bg-zinc-50">
+                  {payments.map((p, i) => (
+                    <li key={i} className="flex items-center justify-between px-3 py-2 text-sm">
+                      <div>
+                        <span className="font-medium text-zinc-900">{PAYMENT_METHOD_LABELS[p.method]}</span>
+                        {p.method === "cash" && p.received !== undefined && (
+                          <span className="ml-2 text-xs text-zinc-500">
+                            預かり{formatYen(p.received)} ・ お釣り{formatYen(p.change ?? 0)}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-zinc-900">{formatYen(p.amount)}</span>
+                        <button onClick={() => removeLeg(i)} className="text-xs text-red-500">
+                          削除
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
               )}
+
+              {remaining > 0 && (
+                <>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-zinc-500">残り</span>
+                    <span className="font-semibold text-zinc-900">{formatYen(remaining)}</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    {PAYMENT_METHODS.map((method) => (
+                      <button
+                        key={method}
+                        onClick={() => selectMethod(method)}
+                        className={`rounded-lg py-2 text-sm font-medium ${
+                          activeMethod === method
+                            ? "bg-zinc-900 text-white"
+                            : "bg-zinc-100 text-zinc-600"
+                        }`}
+                      >
+                        {PAYMENT_METHOD_LABELS[method]}
+                      </button>
+                    ))}
+                  </div>
+                  {activeMethod && (
+                    <div className="flex items-end gap-2">
+                      <label className="flex-1">
+                        <span className="mb-1 block text-xs font-semibold text-zinc-500">
+                          {activeMethod === "cash" ? "預かり金額" : "金額"}
+                        </span>
+                        <input
+                          type="number"
+                          inputMode="numeric"
+                          placeholder={activeMethod === "cash" ? "例: 2000" : undefined}
+                          value={amountInput}
+                          onChange={(e) => setAmountInput(e.target.value)}
+                          onFocus={(e) => e.target.select()}
+                          min={0}
+                          autoFocus
+                          className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+                        />
+                      </label>
+                      {activeMethod === "cash" && (
+                        <div className="flex-1 text-right">
+                          <span className="mb-1 block text-xs font-semibold text-zinc-500">お釣り</span>
+                          <span className="text-lg font-bold text-zinc-900">
+                            {Number.isFinite(enteredAmount) && enteredAmount > 0
+                              ? formatYen(legChange)
+                              : "―"}
+                          </span>
+                        </div>
+                      )}
+                      <button
+                        onClick={addLeg}
+                        disabled={!canAddLeg}
+                        className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white active:bg-zinc-700 disabled:opacity-40"
+                      >
+                        追加
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
+
               <div className="flex gap-2">
                 <button
                   onClick={() => setCheckoutOpen(false)}

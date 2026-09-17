@@ -109,8 +109,9 @@ export async function closeDay(businessDate: string, orders: Order[]) {
   const totalSales = orders.reduce((sum, order) => sum + order.total, 0);
   const totalsByMethod: Record<string, number> = {};
   for (const order of orders) {
-    const key = order.payment_method ?? "other";
-    totalsByMethod[key] = (totalsByMethod[key] ?? 0) + order.total;
+    for (const payment of order.payments) {
+      totalsByMethod[payment.method] = (totalsByMethod[payment.method] ?? 0) + payment.amount;
+    }
   }
 
   const { error } = await supabase.from("daily_closings").insert({

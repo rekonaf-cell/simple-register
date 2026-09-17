@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "./supabaseClient";
-import type { Order, OrderLine, PaymentMethod } from "./types";
+import type { Order, OrderLine, PaymentSplit } from "./types";
 
 async function fetchOpenOrders(): Promise<Order[]> {
   const { data, error } = await supabase
@@ -119,18 +119,13 @@ export async function updateOrderMeta(id: string, patch: { table_number?: string
   if (error) throw error;
 }
 
-export async function completeOrder(
-  id: string,
-  payment: { paymentMethod: PaymentMethod; receivedAmount: number; changeAmount: number }
-) {
+export async function completeOrder(id: string, payments: PaymentSplit[]) {
   const { error } = await supabase
     .from("orders")
     .update({
       status: "completed",
       completed_at: new Date().toISOString(),
-      payment_method: payment.paymentMethod,
-      received_amount: payment.receivedAmount,
-      change_amount: payment.changeAmount,
+      payments,
     })
     .eq("id", id);
   if (error) throw error;
