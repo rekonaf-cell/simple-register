@@ -60,3 +60,11 @@ export async function deleteMenuItem(id: string) {
   const { error } = await supabase.from("menu_items").delete().eq("id", id);
   if (error) throw error;
 }
+
+export async function reorderMenuItems(orderedIds: string[]) {
+  const results = await Promise.all(
+    orderedIds.map((id, index) => supabase.from("menu_items").update({ sort_order: index }).eq("id", id))
+  );
+  const failed = results.find((r) => r.error);
+  if (failed?.error) throw failed.error;
+}

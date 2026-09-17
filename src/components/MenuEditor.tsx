@@ -1,21 +1,108 @@
 "use client";
 
 import { useState } from "react";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { CATEGORIES, type Category, type MenuItem } from "@/lib/types";
-import { addMenuItem, deleteMenuItem, updateMenuItem, useMenu } from "@/lib/useMenu";
+import { addMenuItem, deleteMenuItem, reorderMenuItems, updateMenuItem, useMenu } from "@/lib/useMenu";
+
+function SortableMenuRow({
+  item,
+  onUpdate,
+  onRemove,
+}: {
+  item: MenuItem;
+  onUpdate: (id: string, patch: Partial<Omit<MenuItem, "id">>) => void;
+  onRemove: (id: string) => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: item.id,
+  });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <li
+      ref={setNodeRef}
+      style={style}
+      className="flex flex-wrap items-center gap-2 bg-white px-3 py-2"
+    >
+      <button
+        {...attributes}
+        {...listeners}
+        className="touch-none px-1 text-lg text-zinc-400"
+        aria-label="並び替え"
+      >
+        ⠿
+      </button>
+      <input
+        type="text"
+        value={item.name}
+        onChange={(e) => onUpdate(item.id, { name: e.target.value })}
+        className="min-w-0 flex-1 rounded-lg border border-transparent px-2 py-1 text-sm focus:border-zinc-300"
+      />
+      <select
+        value={item.category}
+        onChange={(e) => onUpdate(item.id, { category: e.target.value as Category })}
+        className="rounded-lg border border-transparent px-2 py-1 text-sm focus:border-zinc-300"
+      >
+        {CATEGORIES.map((cat) => (
+          <option key={cat} value={cat}>
+            {cat}
+          </option>
+        ))}
+      </select>
+      <input
+        type="number"
+        inputMode="numeric"
+        value={item.price}
+        onChange={(e) => onUpdate(item.id, { price: Number(e.target.value) || 0 })}
+        min={0}
+        className="w-20 rounded-lg border border-transparent px-2 py-1 text-right text-sm focus:border-zinc-300"
+      />
+      <button onClick={() => onRemove(item.id)} className="text-xs text-red-500">
+        削除
+      </button>
+    </li>
+  );
+}
 
 export default function MenuEditor() {
   const { menu, loading } = useMenu();
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
   const [category, setCategory] = useState<Category>(CATEGORIES[0]);
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 5 } })
+  );
 
   function addItem(e: React.FormEvent) {
     e.preventDefault();
     const trimmed = name.trim();
     const priceNum = Number(price);
     if (!trimmed || !Number.isFinite(priceNum) || priceNum < 0) return;
-    addMenuItem({ name: trimmed, price: priceNum, category, sort_order: 0 });
+    const categoryItems = menu.filter((item) => item.category === category);
+    const nextSortOrder =
+      categoryItems.length > 0 ? Math.max(...categoryItems.map((item) => item.sort_order)) + 1 : 0;
+    addMenuItem({ name: trimmed, price: priceNum, category, sort_order: nextSortOrder });
     setName("");
     setPrice("");
   }
@@ -27,6 +114,16 @@ export default function MenuEditor() {
   function removeItem(id: string) {
     if (!window.confirm("このメニューを削除しますか？")) return;
     deleteMenuItem(id);
+  }
+
+  function handleDragEnd(categoryItems: MenuItem[], event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = categoryItems.findIndex((item) => item.id === active.id);
+    const newIndex = categoryItems.findIndex((item) => item.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+    const reordered = arrayMove(categoryItems, oldIndex, newIndex);
+    reorderMenuItems(reordered.map((item) => item.id));
   }
 
   if (loading) {
@@ -79,43 +176,23 @@ export default function MenuEditor() {
         CATEGORIES.map((c) => {
           const items = menu.filter((item) => item.category === c);
           if (items.length === 0) return null;
+          const ids = items.map((item) => item.id);
           return (
             <section key={c}>
               <h2 className="mb-2 text-sm font-semibold text-zinc-500">{c}</h2>
-              <ul className="divide-y divide-zinc-200 rounded-xl bg-white shadow">
-                {items.map((item) => (
-                  <li key={item.id} className="flex flex-wrap items-center gap-2 px-3 py-2">
-                    <input
-                      type="text"
-                      value={item.name}
-                      onChange={(e) => updateItem(item.id, { name: e.target.value })}
-                      className="min-w-0 flex-1 rounded-lg border border-transparent px-2 py-1 text-sm focus:border-zinc-300"
-                    />
-                    <select
-                      value={item.category}
-                      onChange={(e) => updateItem(item.id, { category: e.target.value as Category })}
-                      className="rounded-lg border border-transparent px-2 py-1 text-sm focus:border-zinc-300"
-                    >
-                      {CATEGORIES.map((cat) => (
-                        <option key={cat} value={cat}>
-                          {cat}
-                        </option>
-                      ))}
-                    </select>
-                    <input
-                      type="number"
-                      inputMode="numeric"
-                      value={item.price}
-                      onChange={(e) => updateItem(item.id, { price: Number(e.target.value) || 0 })}
-                      min={0}
-                      className="w-20 rounded-lg border border-transparent px-2 py-1 text-right text-sm focus:border-zinc-300"
-                    />
-                    <button onClick={() => removeItem(item.id)} className="text-xs text-red-500">
-                      削除
-                    </button>
-                  </li>
-                ))}
-              </ul>
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={(event) => handleDragEnd(items, event)}
+              >
+                <SortableContext items={ids} strategy={verticalListSortingStrategy}>
+                  <ul className="divide-y divide-zinc-200 rounded-xl bg-white shadow">
+                    {items.map((item) => (
+                      <SortableMenuRow key={item.id} item={item} onUpdate={updateItem} onRemove={removeItem} />
+                    ))}
+                  </ul>
+                </SortableContext>
+              </DndContext>
             </section>
           );
         })
