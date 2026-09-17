@@ -123,6 +123,10 @@ export function addTaxBreakdowns(a: TaxBreakdown, b: TaxBreakdown): TaxBreakdown
 
 export const EMPTY_TAX_BREAKDOWN: TaxBreakdown = { taxable8: 0, tax8: 0, taxable10: 0, tax10: 0 };
 
+export function taxExcludedTotal(breakdown: TaxBreakdown) {
+  return breakdown.taxable8 - breakdown.tax8 + (breakdown.taxable10 - breakdown.tax10);
+}
+
 export async function createOrder(tableNumber: string, partySize: number): Promise<string> {
   const { data, error } = await supabase
     .from("orders")

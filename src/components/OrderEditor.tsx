@@ -21,6 +21,7 @@ import {
   computeTaxBreakdown,
   deleteOrder,
   lineUnitPrice,
+  taxExcludedTotal,
   updateOrderLines,
   updateOrderMeta,
   useOrder,
@@ -441,6 +442,7 @@ export default function OrderEditor({ orderId }: { orderId: string }) {
                 {tax.taxable10 > 0 && tax.taxable8 > 0 && <span> ・ </span>}
                 {tax.taxable8 > 0 && <span>8%対象 {formatYen(tax.taxable8)}（内税{formatYen(tax.tax8)}）</span>}
               </div>
+              <div className="text-right text-xs text-zinc-400">税抜合計 {formatYen(taxExcludedTotal(tax))}</div>
 
               {payments.length > 0 && (
                 <ul className="divide-y divide-zinc-200 rounded-lg bg-zinc-50">

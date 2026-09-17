@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { PAYMENT_METHOD_LABELS, type PaymentMethod } from "@/lib/types";
-import { addTaxBreakdowns, computeTaxBreakdown, EMPTY_TAX_BREAKDOWN } from "@/lib/useOrders";
+import { addTaxBreakdowns, computeTaxBreakdown, EMPTY_TAX_BREAKDOWN, taxExcludedTotal } from "@/lib/useOrders";
 import { closeDay, todayJst, useCompletedOrders, useDailyClosing } from "@/lib/useReport";
 
 function formatYen(amount: number) {
@@ -88,6 +88,9 @@ export default function ReportView() {
                   {formatYen(closing.tax_breakdown?.tax10 ?? 0)}） ・ 8%対象{" "}
                   {formatYen(closing.tax_breakdown?.taxable8 ?? 0)}（税{formatYen(closing.tax_breakdown?.tax8 ?? 0)}）
                 </div>
+                <div className="text-xs text-zinc-500">
+                  税抜合計　{formatYen(taxExcludedTotal(closing.tax_breakdown ?? EMPTY_TAX_BREAKDOWN))}
+                </div>
               </div>
             ) : (
               <div className="flex flex-col gap-2">
@@ -110,6 +113,7 @@ export default function ReportView() {
                   内消費税　10%対象 {formatYen(taxBreakdown.taxable10)}（税{formatYen(taxBreakdown.tax10)}） ・
                   8%対象 {formatYen(taxBreakdown.taxable8)}（税{formatYen(taxBreakdown.tax8)}）
                 </div>
+                <div className="text-xs text-zinc-500">税抜合計　{formatYen(taxExcludedTotal(taxBreakdown))}</div>
                 <button
                   onClick={handleCloseDay}
                   disabled={orders.length === 0 || closingBusy}
