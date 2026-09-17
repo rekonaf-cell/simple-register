@@ -3,23 +3,41 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CATEGORIES, PAYMENT_METHODS, PAYMENT_METHOD_LABELS, type Category, type MenuItem, type PaymentMethod } from "@/lib/types";
+import {
+  CATEGORIES,
+  PAYMENT_METHODS,
+  PAYMENT_METHOD_LABELS,
+  type Category,
+  type MenuItem,
+  type OrderLineTopping,
+  type PaymentMethod,
+} from "@/lib/types";
 import { useMenu } from "@/lib/useMenu";
-import { completeOrder, deleteOrder, updateOrderLines, updateOrderMeta, useOrder } from "@/lib/useOrders";
+import { completeOrder, deleteOrder, lineUnitPrice, updateOrderLines, updateOrderMeta, useOrder } from "@/lib/useOrders";
+import { useToppings } from "@/lib/useToppings";
 
 function formatYen(amount: number) {
   return `¥${amount.toLocaleString("ja-JP")}`;
 }
 
+function sameToppingSet(a: OrderLineTopping[], b: OrderLineTopping[]) {
+  if (a.length !== b.length) return false;
+  const aIds = new Set(a.map((t) => t.id));
+  return b.every((t) => aIds.has(t.id));
+}
+
 export default function OrderEditor({ orderId }: { orderId: string }) {
   const router = useRouter();
   const { menu } = useMenu();
+  const { toppings } = useToppings();
   const { order, loading } = useOrder(orderId);
   const [activeCategory, setActiveCategory] = useState<Category>(CATEGORIES[0]);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null);
   const [receivedInput, setReceivedInput] = useState("");
   const [completing, setCompleting] = useState(false);
+  const [pickerItem, setPickerItem] = useState<MenuItem | null>(null);
+  const [selectedToppingIds, setSelectedToppingIds] = useState<Set<string>>(new Set());
 
   if (loading) {
     return <p className="p-4 text-sm text-zinc-500">読み込み中...</p>;
@@ -42,24 +60,55 @@ export default function OrderEditor({ orderId }: { orderId: string }) {
   const total = order.total;
   const totalCount = lines.reduce((sum, l) => sum + l.qty, 0);
 
-  function addItem(item: MenuItem) {
-    if (!order) return;
-    const existing = lines.find((l) => l.menuItemId === item.id);
-    const next = existing
-      ? lines.map((l) => (l.menuItemId === item.id ? { ...l, qty: l.qty + 1 } : l))
-      : [...lines, { menuItemId: item.id, name: item.name, price: item.price, qty: 1 }];
-    updateOrderLines(orderId, next);
+  function openPicker(item: MenuItem) {
+    setSelectedToppingIds(new Set());
+    setPickerItem(item);
   }
 
-  function changeQty(menuItemId: string, delta: number) {
+  function toggleTopping(id: string) {
+    setSelectedToppingIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function confirmAddItem() {
+    if (!pickerItem) return;
+    const chosenToppings: OrderLineTopping[] = toppings
+      .filter((t) => selectedToppingIds.has(t.id))
+      .map((t) => ({ id: t.id, name: t.name, price: t.price }));
+
+    const existing = lines.find(
+      (l) => l.menuItemId === pickerItem.id && sameToppingSet(l.toppings, chosenToppings)
+    );
+    const next = existing
+      ? lines.map((l) => (l.id === existing.id ? { ...l, qty: l.qty + 1 } : l))
+      : [
+          ...lines,
+          {
+            id: crypto.randomUUID(),
+            menuItemId: pickerItem.id,
+            name: pickerItem.name,
+            price: pickerItem.price,
+            qty: 1,
+            toppings: chosenToppings,
+          },
+        ];
+    updateOrderLines(orderId, next);
+    setPickerItem(null);
+  }
+
+  function changeQty(lineId: string, delta: number) {
     const next = lines
-      .map((l) => (l.menuItemId === menuItemId ? { ...l, qty: l.qty + delta } : l))
+      .map((l) => (l.id === lineId ? { ...l, qty: l.qty + delta } : l))
       .filter((l) => l.qty > 0);
     updateOrderLines(orderId, next);
   }
 
-  function removeLine(menuItemId: string) {
-    updateOrderLines(orderId, lines.filter((l) => l.menuItemId !== menuItemId));
+  function removeLine(lineId: string) {
+    updateOrderLines(orderId, lines.filter((l) => l.id !== lineId));
   }
 
   const receivedAmount = Number(receivedInput);
@@ -180,7 +229,7 @@ export default function OrderEditor({ orderId }: { orderId: string }) {
                   {items.map((item) => (
                     <button
                       key={item.id}
-                      onClick={() => addItem(item)}
+                      onClick={() => openPicker(item)}
                       className="flex min-h-20 flex-col items-center justify-center gap-1 rounded-xl bg-white px-2 py-3 text-center shadow active:scale-95 active:bg-zinc-100"
                     >
                       <span className="text-sm font-medium text-zinc-900">{item.name}</span>
@@ -203,15 +252,22 @@ export default function OrderEditor({ orderId }: { orderId: string }) {
         ) : (
           <ul className="divide-y divide-zinc-200 rounded-xl bg-white shadow">
             {lines.map((line) => (
-              <li key={line.menuItemId} className="flex items-center gap-2 px-3 py-2">
+              <li key={line.id} className="flex items-center gap-2 px-3 py-2">
                 <div className="flex-1 min-w-0">
-                  <p className="truncate text-sm font-medium text-zinc-900">{line.name}</p>
+                  <p className="truncate text-sm font-medium text-zinc-900">
+                    {line.name}
+                    {line.toppings.length > 0 && (
+                      <span className="text-zinc-500">
+                        （{line.toppings.map((t) => t.name).join("・")}）
+                      </span>
+                    )}
+                  </p>
                   <p className="text-xs text-zinc-500">
-                    {formatYen(line.price)} × {line.qty} = {formatYen(line.price * line.qty)}
+                    {formatYen(lineUnitPrice(line))} × {line.qty} = {formatYen(lineUnitPrice(line) * line.qty)}
                   </p>
                 </div>
                 <button
-                  onClick={() => changeQty(line.menuItemId, -1)}
+                  onClick={() => changeQty(line.id, -1)}
                   className="h-8 w-8 rounded-full bg-zinc-100 text-lg font-bold text-zinc-700 active:bg-zinc-200"
                   aria-label="数量を減らす"
                 >
@@ -219,13 +275,13 @@ export default function OrderEditor({ orderId }: { orderId: string }) {
                 </button>
                 <span className="w-6 text-center text-sm font-semibold">{line.qty}</span>
                 <button
-                  onClick={() => changeQty(line.menuItemId, 1)}
+                  onClick={() => changeQty(line.id, 1)}
                   className="h-8 w-8 rounded-full bg-zinc-100 text-lg font-bold text-zinc-700 active:bg-zinc-200"
                   aria-label="数量を増やす"
                 >
                   ＋
                 </button>
-                <button onClick={() => removeLine(line.menuItemId)} className="ml-1 text-xs text-red-500">
+                <button onClick={() => removeLine(line.id)} className="ml-1 text-xs text-red-500">
                   削除
                 </button>
               </li>
@@ -233,6 +289,60 @@ export default function OrderEditor({ orderId }: { orderId: string }) {
           </ul>
         )}
       </section>
+
+      {pickerItem && (
+        <div className="fixed inset-0 z-20 flex items-end justify-center bg-black/40">
+          <div className="w-full max-w-2xl rounded-t-2xl bg-white p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <div>
+                <p className="text-base font-semibold text-zinc-900">{pickerItem.name}</p>
+                <p className="text-sm text-zinc-500">{formatYen(pickerItem.price)}</p>
+              </div>
+              <button
+                onClick={() => setPickerItem(null)}
+                className="text-sm text-zinc-500"
+              >
+                キャンセル
+              </button>
+            </div>
+
+            {toppings.length > 0 && (
+              <div className="mb-3 flex flex-col gap-2">
+                <p className="text-xs font-semibold text-zinc-500">トッピング</p>
+                <div className="flex flex-wrap gap-2">
+                  {toppings.map((t) => (
+                    <button
+                      key={t.id}
+                      onClick={() => toggleTopping(t.id)}
+                      className={`rounded-full px-4 py-2 text-sm font-medium ${
+                        selectedToppingIds.has(t.id)
+                          ? "bg-zinc-900 text-white"
+                          : "bg-zinc-100 text-zinc-600"
+                      }`}
+                    >
+                      {t.name} +{formatYen(t.price)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <button
+              onClick={confirmAddItem}
+              className="w-full rounded-full bg-zinc-900 px-4 py-3 text-sm font-semibold text-white active:bg-zinc-700"
+            >
+              追加（
+              {formatYen(
+                pickerItem.price +
+                  toppings
+                    .filter((t) => selectedToppingIds.has(t.id))
+                    .reduce((sum, t) => sum + t.price, 0)
+              )}
+              ）
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="fixed inset-x-0 bottom-0 border-t border-zinc-200 bg-white/95 p-4 backdrop-blur">
         <div className="mx-auto max-w-2xl">

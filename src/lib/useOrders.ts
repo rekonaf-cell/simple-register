@@ -88,8 +88,12 @@ export function useOrder(id: string) {
   return { order, loading };
 }
 
+export function lineUnitPrice(line: OrderLine) {
+  return line.price + line.toppings.reduce((sum, t) => sum + t.price, 0);
+}
+
 export function orderTotal(lines: OrderLine[]) {
-  return lines.reduce((sum, line) => sum + line.price * line.qty, 0);
+  return lines.reduce((sum, line) => sum + lineUnitPrice(line) * line.qty, 0);
 }
 
 export async function createOrder(tableNumber: string, partySize: number): Promise<string> {

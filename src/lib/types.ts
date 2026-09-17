@@ -11,11 +11,26 @@ export type MenuItem = {
   sort_order: number;
 };
 
+export type Topping = {
+  id: string;
+  name: string;
+  price: number;
+  sort_order: number;
+};
+
+export type OrderLineTopping = {
+  id: string;
+  name: string;
+  price: number;
+};
+
 export type OrderLine = {
+  id: string;
   menuItemId: string;
   name: string;
   price: number;
   qty: number;
+  toppings: OrderLineTopping[];
 };
 
 export type OrderStatus = "open" | "completed";

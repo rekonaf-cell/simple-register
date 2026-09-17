@@ -39,6 +39,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             <Link href="/">テーブル一覧</Link>
             <Link href="/report">売上</Link>
             <Link href="/menu">メニュー管理</Link>
+            <Link href="/toppings">トッピング管理</Link>
           </nav>
         </header>
         <main className="flex flex-1 flex-col">{children}</main>
