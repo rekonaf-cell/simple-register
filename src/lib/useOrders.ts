@@ -4,24 +4,25 @@ import { useEffect, useState } from "react";
 import { supabase } from "./supabaseClient";
 import type { Order, OrderLine, PaymentSplit, TaxBreakdown } from "./types";
 
-async function fetchOpenOrders(): Promise<Order[]> {
+async function fetchOpenOrders(isPractice: boolean): Promise<Order[]> {
   const { data, error } = await supabase
     .from("orders")
     .select("*")
     .eq("status", "open")
+    .eq("is_practice", isPractice)
     .order("created_at");
   if (error) throw error;
   return data as Order[];
 }
 
-export function useOpenOrders() {
+export function useOpenOrders(isPractice: boolean) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let active = true;
 
-    fetchOpenOrders().then((data) => {
+    fetchOpenOrders(isPractice).then((data) => {
       if (active) {
         setOrders(data);
         setLoading(false);
@@ -29,9 +30,9 @@ export function useOpenOrders() {
     });
 
     const channel = supabase
-      .channel("orders_list_changes")
+      .channel(`orders_list_changes_${isPractice}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => {
-        fetchOpenOrders().then((data) => {
+        fetchOpenOrders(isPractice).then((data) => {
           if (active) setOrders(data);
         });
       })
@@ -41,7 +42,7 @@ export function useOpenOrders() {
       active = false;
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [isPractice]);
 
   return { orders, loading };
 }
@@ -131,14 +132,30 @@ export function totalTax(breakdown: TaxBreakdown) {
   return breakdown.tax8 + breakdown.tax10;
 }
 
-export async function createOrder(tableNumber: string, partySize: number): Promise<string> {
+export async function createOrder(
+  tableNumber: string,
+  partySize: number,
+  isPractice: boolean
+): Promise<string> {
   const { data, error } = await supabase
     .from("orders")
-    .insert({ table_number: tableNumber, party_size: partySize, status: "open", lines: [], total: 0 })
+    .insert({
+      table_number: tableNumber,
+      party_size: partySize,
+      status: "open",
+      lines: [],
+      total: 0,
+      is_practice: isPractice,
+    })
     .select("id")
     .single();
   if (error) throw error;
   return data.id as string;
+}
+
+export async function deletePracticeOrders() {
+  const { error } = await supabase.from("orders").delete().eq("is_practice", true);
+  if (error) throw error;
 }
 
 export async function updateOrderLines(id: string, lines: OrderLine[]) {

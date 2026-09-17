@@ -209,6 +209,12 @@ export default function OrderEditor({ orderId }: { orderId: string }) {
         </button>
       </div>
 
+      {order.is_practice && (
+        <div className="rounded-xl bg-amber-50 px-4 py-2 text-center text-xs font-semibold text-amber-700">
+          練習モードの注文です（売上に反映されません）
+        </div>
+      )}
+
       <section className="flex gap-2 rounded-xl bg-white p-3 shadow">
         <label className="flex-1">
           <span className="mb-1 block text-xs font-semibold text-zinc-500">テーブル番号</span>

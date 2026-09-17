@@ -107,6 +107,7 @@ export type Order = {
   created_at: string;
   completed_at: string | null;
   payments: PaymentSplit[];
+  is_practice: boolean;
 };
 
 export type DailyClosing = {

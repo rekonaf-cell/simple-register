@@ -3,7 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { createOrder, useOpenOrders } from "@/lib/useOrders";
+import { usePracticeMode } from "@/lib/practiceMode";
+import { createOrder, deletePracticeOrders, useOpenOrders } from "@/lib/useOrders";
 
 function formatYen(amount: number) {
   return `¥${amount.toLocaleString("ja-JP")}`;
@@ -11,7 +12,8 @@ function formatYen(amount: number) {
 
 export default function TableListView() {
   const router = useRouter();
-  const { orders, loading } = useOpenOrders();
+  const practiceMode = usePracticeMode();
+  const { orders, loading } = useOpenOrders(practiceMode);
   const [showForm, setShowForm] = useState(false);
   const [tableNumber, setTableNumber] = useState("");
   const [partySize, setPartySize] = useState("1");
@@ -21,23 +23,37 @@ export default function TableListView() {
     e.preventDefault();
     setCreating(true);
     try {
-      const id = await createOrder(tableNumber, Math.max(1, parseInt(partySize, 10) || 1));
+      const id = await createOrder(tableNumber, Math.max(1, parseInt(partySize, 10) || 1), practiceMode);
       router.push(`/order/${id}`);
     } finally {
       setCreating(false);
     }
   }
 
+  async function handleDeletePractice() {
+    if (!window.confirm("練習データ（進行中・会計済みすべて）を削除しますか？")) return;
+    await deletePracticeOrders();
+  }
+
   return (
     <div className="flex flex-1 flex-col gap-4 p-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-zinc-500">進行中のテーブル</h2>
-        <button
-          onClick={() => setShowForm((v) => !v)}
-          className="rounded-full bg-zinc-900 px-4 py-2 text-sm font-semibold text-white active:bg-zinc-700"
-        >
-          + 新規テーブル
-        </button>
+        <h2 className="text-sm font-semibold text-zinc-500">
+          {practiceMode ? "練習中のテーブル" : "進行中のテーブル"}
+        </h2>
+        <div className="flex items-center gap-2">
+          {practiceMode && (
+            <button onClick={handleDeletePractice} className="text-xs text-red-500">
+              練習データを削除
+            </button>
+          )}
+          <button
+            onClick={() => setShowForm((v) => !v)}
+            className="rounded-full bg-zinc-900 px-4 py-2 text-sm font-semibold text-white active:bg-zinc-700"
+          >
+            + 新規テーブル
+          </button>
+        </div>
       </div>
 
       {showForm && (

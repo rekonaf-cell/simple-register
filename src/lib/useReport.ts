@@ -21,6 +21,7 @@ async function fetchCompletedOrders(businessDate: string): Promise<Order[]> {
     .from("orders")
     .select("*")
     .eq("status", "completed")
+    .eq("is_practice", false)
     .gte("completed_at", startIso)
     .lt("completed_at", endIso)
     .order("completed_at", { ascending: false });

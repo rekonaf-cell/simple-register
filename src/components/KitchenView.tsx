@@ -1,6 +1,7 @@
 "use client";
 
 import type { Order } from "@/lib/types";
+import { usePracticeMode } from "@/lib/practiceMode";
 import { updateOrderLines, useOpenOrders } from "@/lib/useOrders";
 
 function toggleServed(order: Order, lineId: string) {
@@ -9,13 +10,16 @@ function toggleServed(order: Order, lineId: string) {
 }
 
 export default function KitchenView() {
-  const { orders, loading } = useOpenOrders();
+  const practiceMode = usePracticeMode();
+  const { orders, loading } = useOpenOrders(practiceMode);
   const ticketed = orders.filter((o) => o.lines.length > 0);
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-4">
       <div className="flex items-baseline justify-between">
-        <h2 className="text-sm font-semibold text-zinc-500">キッチン ー 通った順</h2>
+        <h2 className="text-sm font-semibold text-zinc-500">
+          キッチン ー 通った順{practiceMode && "（練習）"}
+        </h2>
         <span className="text-xs text-zinc-400">商品をタップで提供済みに</span>
       </div>
 
