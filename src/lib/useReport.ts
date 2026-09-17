@@ -106,21 +106,18 @@ export function useDailyClosing(businessDate: string) {
 }
 
 export async function closeDay(businessDate: string, orders: Order[]) {
-  const totals = orders.reduce(
-    (acc, order) => {
-      acc.total_sales += order.total;
-      if (order.payment_method === "cash") acc.cash_total += order.total;
-      else if (order.payment_method === "card") acc.card_total += order.total;
-      else acc.other_total += order.total;
-      return acc;
-    },
-    { total_sales: 0, cash_total: 0, card_total: 0, other_total: 0 }
-  );
+  const totalSales = orders.reduce((sum, order) => sum + order.total, 0);
+  const totalsByMethod: Record<string, number> = {};
+  for (const order of orders) {
+    const key = order.payment_method ?? "other";
+    totalsByMethod[key] = (totalsByMethod[key] ?? 0) + order.total;
+  }
 
   const { error } = await supabase.from("daily_closings").insert({
     business_date: businessDate,
     order_count: orders.length,
-    ...totals,
+    total_sales: totalSales,
+    totals_by_method: totalsByMethod,
   });
   if (error) throw error;
 }

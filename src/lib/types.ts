@@ -35,13 +35,29 @@ export type OrderLine = {
 
 export type OrderStatus = "open" | "completed";
 
-export const PAYMENT_METHODS = ["cash", "card", "other"] as const;
+export const PAYMENT_METHODS = [
+  "cash",
+  "credit",
+  "qr",
+  "pitapa",
+  "dpay",
+  "other",
+  "premium",
+  "chikagai",
+  "gift",
+] as const;
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
 export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   cash: "現金",
-  card: "カード",
+  credit: "クレジット",
+  qr: "QR決済",
+  pitapa: "PiTaPa",
+  dpay: "d払い",
   other: "その他",
+  premium: "プレミアム",
+  chikagai: "地下街",
+  gift: "金券",
 };
 
 export type Order = {
@@ -64,7 +80,5 @@ export type DailyClosing = {
   closed_at: string;
   order_count: number;
   total_sales: number;
-  cash_total: number;
-  card_total: number;
-  other_total: number;
+  totals_by_method: Partial<Record<PaymentMethod, number>>;
 };

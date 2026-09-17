@@ -369,12 +369,12 @@ export default function OrderEditor({ orderId }: { orderId: string }) {
                 <span className="text-sm text-zinc-500">お会計</span>
                 <span className="text-xl font-bold text-zinc-900">{formatYen(total)}</span>
               </div>
-              <div className="flex gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 {PAYMENT_METHODS.map((method) => (
                   <button
                     key={method}
                     onClick={() => setPaymentMethod(method)}
-                    className={`flex-1 rounded-lg py-2 text-sm font-medium ${
+                    className={`rounded-lg py-2 text-sm font-medium ${
                       paymentMethod === method
                         ? "bg-zinc-900 text-white"
                         : "bg-zinc-100 text-zinc-600"

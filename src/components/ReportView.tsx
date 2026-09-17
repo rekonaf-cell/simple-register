@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { PAYMENT_METHOD_LABELS } from "@/lib/types";
+import { PAYMENT_METHOD_LABELS, type PaymentMethod } from "@/lib/types";
 import { closeDay, todayJst, useCompletedOrders, useDailyClosing } from "@/lib/useReport";
 
 function formatYen(amount: number) {
@@ -22,20 +22,16 @@ export default function ReportView() {
   const { closing, loading: closingLoading } = useDailyClosing(date);
   const [closingBusy, setClosingBusy] = useState(false);
 
-  const totals = orders.reduce(
-    (acc, o) => {
-      acc.total += o.total;
-      if (o.payment_method === "cash") acc.cash += o.total;
-      else if (o.payment_method === "card") acc.card += o.total;
-      else acc.other += o.total;
-      return acc;
-    },
-    { total: 0, cash: 0, card: 0, other: 0 }
-  );
+  const totalSales = orders.reduce((sum, o) => sum + o.total, 0);
+  const totalsByMethod: Partial<Record<PaymentMethod, number>> = {};
+  for (const o of orders) {
+    const key = (o.payment_method ?? "other") as PaymentMethod;
+    totalsByMethod[key] = (totalsByMethod[key] ?? 0) + o.total;
+  }
 
   async function handleCloseDay() {
     if (orders.length === 0) return;
-    if (!window.confirm(`${date} の閉店処理を確定します。件数: ${orders.length}件 / 合計: ${formatYen(totals.total)}\nよろしいですか？`)) return;
+    if (!window.confirm(`${date} の閉店処理を確定します。件数: ${orders.length}件 / 合計: ${formatYen(totalSales)}\nよろしいですか？`)) return;
     setClosingBusy(true);
     try {
       await closeDay(date, orders);
@@ -71,38 +67,30 @@ export default function ReportView() {
                 <p className="text-3xl font-bold text-zinc-900">{formatYen(closing.total_sales)}</p>
                 <p className="text-xs text-zinc-500">{closing.order_count}件</p>
                 <div className="mt-2 grid grid-cols-3 gap-2 text-sm">
-                  <div>
-                    <p className="text-xs text-zinc-500">現金</p>
-                    <p className="font-semibold">{formatYen(closing.cash_total)}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-zinc-500">カード</p>
-                    <p className="font-semibold">{formatYen(closing.card_total)}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-zinc-500">その他</p>
-                    <p className="font-semibold">{formatYen(closing.other_total)}</p>
-                  </div>
+                  {(Object.entries(closing.totals_by_method) as [PaymentMethod, number][])
+                    .filter(([, amount]) => amount > 0)
+                    .map(([method, amount]) => (
+                      <div key={method}>
+                        <p className="text-xs text-zinc-500">{PAYMENT_METHOD_LABELS[method]}</p>
+                        <p className="font-semibold">{formatYen(amount)}</p>
+                      </div>
+                    ))}
                 </div>
               </div>
             ) : (
               <div className="flex flex-col gap-2">
                 <p className="text-sm text-zinc-500">未精算（{date}の集計）</p>
-                <p className="text-3xl font-bold text-zinc-900">{formatYen(totals.total)}</p>
+                <p className="text-3xl font-bold text-zinc-900">{formatYen(totalSales)}</p>
                 <p className="text-xs text-zinc-500">{orders.length}件</p>
                 <div className="mt-2 grid grid-cols-3 gap-2 text-sm">
-                  <div>
-                    <p className="text-xs text-zinc-500">現金</p>
-                    <p className="font-semibold">{formatYen(totals.cash)}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-zinc-500">カード</p>
-                    <p className="font-semibold">{formatYen(totals.card)}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-zinc-500">その他</p>
-                    <p className="font-semibold">{formatYen(totals.other)}</p>
-                  </div>
+                  {(Object.entries(totalsByMethod) as [PaymentMethod, number][])
+                    .filter(([, amount]) => amount > 0)
+                    .map(([method, amount]) => (
+                      <div key={method}>
+                        <p className="text-xs text-zinc-500">{PAYMENT_METHOD_LABELS[method]}</p>
+                        <p className="font-semibold">{formatYen(amount)}</p>
+                      </div>
+                    ))}
                 </div>
                 <button
                   onClick={handleCloseDay}
