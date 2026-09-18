@@ -357,27 +357,37 @@ function OrderEditorReady({ orderId, order }: { orderId: string; order: Order })
             ))}
           </div>
           {activeMethod && (
-            <div className="flex items-end gap-2">
-              <label className="flex-1">
-                <span className="mb-1 block text-xs font-semibold text-zinc-500">
-                  {activeMethod === "cash" ? "預かり金額" : "金額"}
-                </span>
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  placeholder={activeMethod === "cash" ? "例: 2000" : undefined}
-                  value={amountInput}
-                  onChange={(e) => setAmountInput(e.target.value)}
-                  onFocus={(e) => e.target.select()}
-                  min={0}
-                  autoFocus
-                  className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
-                />
-              </label>
+            <div className="flex flex-col gap-3">
+              <div className="flex items-end gap-3">
+                <label className="flex-1">
+                  <span className="mb-1 block text-sm font-semibold text-zinc-500">
+                    {activeMethod === "cash" ? "預かり金額" : "金額"}
+                  </span>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    placeholder={activeMethod === "cash" ? "例: 2000" : undefined}
+                    value={amountInput}
+                    onChange={(e) => setAmountInput(e.target.value)}
+                    onFocus={(e) => e.target.select()}
+                    min={0}
+                    autoFocus
+                    className="w-full rounded-lg border border-zinc-300 px-4 py-3 text-2xl font-semibold"
+                  />
+                </label>
+                {activeMethod === "cash" && (
+                  <div className="flex-1 text-right">
+                    <span className="mb-1 block text-sm font-semibold text-zinc-500">お釣り</span>
+                    <span className="block text-3xl font-bold text-zinc-900">
+                      {Number.isFinite(enteredAmount) && enteredAmount > 0 ? formatYen(legChange) : "―"}
+                    </span>
+                  </div>
+                )}
+              </div>
               <button
                 onClick={addLeg}
                 disabled={!canAddLeg}
-                className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white active:bg-zinc-700 disabled:opacity-40"
+                className="w-full rounded-lg bg-zinc-900 px-4 py-3 text-sm font-semibold text-white active:bg-zinc-700 disabled:opacity-40"
               >
                 追加
               </button>
@@ -470,37 +480,39 @@ function OrderEditorReady({ orderId, order }: { orderId: string; order: Order })
                 ))}
               </div>
               {activeMethod && (
-                <div className="flex items-end gap-2">
-                  <label className="flex-1">
-                    <span className="mb-1 block text-xs font-semibold text-zinc-500">
-                      {activeMethod === "cash" ? "預かり金額" : "金額"}
-                    </span>
-                    <input
-                      type="number"
-                      inputMode="numeric"
-                      placeholder={activeMethod === "cash" ? "例: 2000" : undefined}
-                      value={amountInput}
-                      onChange={(e) => setAmountInput(e.target.value)}
-                      onFocus={(e) => e.target.select()}
-                      min={0}
-                      autoFocus
-                      className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
-                    />
-                  </label>
-                  {activeMethod === "cash" && (
-                    <div className="flex-1 text-right">
-                      <span className="mb-1 block text-xs font-semibold text-zinc-500">お釣り</span>
-                      <span className="text-lg font-bold text-zinc-900">
-                        {Number.isFinite(enteredAmount) && enteredAmount > 0
-                          ? formatYen(legChange)
-                          : "―"}
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-end gap-3">
+                    <label className="flex-1">
+                      <span className="mb-1 block text-sm font-semibold text-zinc-500">
+                        {activeMethod === "cash" ? "預かり金額" : "金額"}
                       </span>
-                    </div>
-                  )}
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        placeholder={activeMethod === "cash" ? "例: 2000" : undefined}
+                        value={amountInput}
+                        onChange={(e) => setAmountInput(e.target.value)}
+                        onFocus={(e) => e.target.select()}
+                        min={0}
+                        autoFocus
+                        className="w-full rounded-lg border border-zinc-300 px-4 py-3 text-2xl font-semibold"
+                      />
+                    </label>
+                    {activeMethod === "cash" && (
+                      <div className="flex-1 text-right">
+                        <span className="mb-1 block text-sm font-semibold text-zinc-500">お釣り</span>
+                        <span className="block text-3xl font-bold text-zinc-900">
+                          {Number.isFinite(enteredAmount) && enteredAmount > 0
+                            ? formatYen(legChange)
+                            : "―"}
+                        </span>
+                      </div>
+                    )}
+                  </div>
                   <button
                     onClick={addLeg}
                     disabled={!canAddLeg}
-                    className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white active:bg-zinc-700 disabled:opacity-40"
+                    className="w-full rounded-lg bg-zinc-900 px-4 py-3 text-sm font-semibold text-white active:bg-zinc-700 disabled:opacity-40"
                   >
                     追加
                   </button>
