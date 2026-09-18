@@ -396,6 +396,139 @@ function OrderEditorReady({ orderId, order }: { orderId: string; order: Order })
     );
   }
 
+  if (checkoutOpen) {
+    return (
+      <div className="flex flex-1 flex-col gap-4 p-4 pb-8">
+        <div className="flex items-center justify-between">
+          <button onClick={() => setCheckoutOpen(false)} className="text-sm text-zinc-500">
+            ← 注文に戻る
+          </button>
+        </div>
+
+        {order.is_practice && (
+          <div className="rounded-xl bg-amber-50 px-4 py-2 text-center text-xs font-semibold text-amber-700">
+            練習モードの注文です（売上に反映されません）
+          </div>
+        )}
+
+        <section className="rounded-xl bg-white p-4 shadow">
+          <p className="text-sm font-semibold text-zinc-900">
+            {order.table_number ? `${order.table_number}番` : "番号未設定"} ・ {order.party_size}名
+          </p>
+          <ul className="mt-3 divide-y divide-zinc-200">
+            {lines.map((line) => (
+              <li key={line.id} className="py-2">
+                <p className="text-sm font-medium text-zinc-900">
+                  {line.name}
+                  {line.toppings.length > 0 && (
+                    <span className="text-zinc-500">
+                      （{line.toppings.map((t) => t.name).join("・")}）
+                    </span>
+                  )}
+                </p>
+                <p className="text-xs text-zinc-500">
+                  {formatYen(lineUnitPrice(line))} × {line.qty} = {formatYen(lineUnitPrice(line) * line.qty)}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <section className="flex flex-col gap-3 rounded-xl bg-white p-4 shadow">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-zinc-500">お会計合計</span>
+            <span className="text-xl font-bold text-zinc-900">{formatYen(total)}</span>
+          </div>
+          <div className="text-right text-xs text-zinc-400">
+            {tax.taxable10 > 0 && <span>10%対象 {formatYen(tax.taxable10)}（内税{formatYen(tax.tax10)}）</span>}
+            {tax.taxable10 > 0 && tax.taxable8 > 0 && <span> ・ </span>}
+            {tax.taxable8 > 0 && <span>8%対象 {formatYen(tax.taxable8)}（内税{formatYen(tax.tax8)}）</span>}
+          </div>
+          <div className="text-right text-xs text-zinc-400">
+            税抜合計 {formatYen(taxExcludedTotal(tax))} ・ 内税合計 {formatYen(totalTax(tax))}
+          </div>
+
+          <PaymentLegs payments={payments} onRemove={removeLeg} />
+
+          {remaining > 0 && (
+            <>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-zinc-500">残り</span>
+                <span className="font-semibold text-zinc-900">{formatYen(remaining)}</span>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {PAYMENT_METHODS.map((method) => (
+                  <button
+                    key={method}
+                    onClick={() => selectMethod(method)}
+                    className={`rounded-lg py-2 text-sm font-medium ${
+                      activeMethod === method ? "bg-zinc-900 text-white" : "bg-zinc-100 text-zinc-600"
+                    }`}
+                  >
+                    {PAYMENT_METHOD_LABELS[method]}
+                  </button>
+                ))}
+              </div>
+              {activeMethod && (
+                <div className="flex items-end gap-2">
+                  <label className="flex-1">
+                    <span className="mb-1 block text-xs font-semibold text-zinc-500">
+                      {activeMethod === "cash" ? "預かり金額" : "金額"}
+                    </span>
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      placeholder={activeMethod === "cash" ? "例: 2000" : undefined}
+                      value={amountInput}
+                      onChange={(e) => setAmountInput(e.target.value)}
+                      onFocus={(e) => e.target.select()}
+                      min={0}
+                      autoFocus
+                      className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+                    />
+                  </label>
+                  {activeMethod === "cash" && (
+                    <div className="flex-1 text-right">
+                      <span className="mb-1 block text-xs font-semibold text-zinc-500">お釣り</span>
+                      <span className="text-lg font-bold text-zinc-900">
+                        {Number.isFinite(enteredAmount) && enteredAmount > 0
+                          ? formatYen(legChange)
+                          : "―"}
+                      </span>
+                    </div>
+                  )}
+                  <button
+                    onClick={addLeg}
+                    disabled={!canAddLeg}
+                    className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white active:bg-zinc-700 disabled:opacity-40"
+                  >
+                    追加
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+
+          <div className="flex gap-2">
+            <button
+              onClick={() => setCheckoutOpen(false)}
+              className="flex-1 rounded-full border border-zinc-300 px-4 py-3 text-sm font-medium text-zinc-600 active:bg-zinc-100"
+            >
+              キャンセル
+            </button>
+            <button
+              onClick={confirmCheckout}
+              disabled={!canConfirm || completing}
+              className="flex-1 rounded-full bg-zinc-900 px-4 py-3 text-sm font-semibold text-white active:bg-zinc-700 disabled:opacity-40"
+            >
+              会計を確定
+            </button>
+          </div>
+        </section>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-1 flex-col gap-4 p-4 pb-40">
       <div className="flex items-center justify-between">
@@ -632,121 +765,21 @@ function OrderEditorReady({ orderId, order }: { orderId: string; order: Order })
       )}
 
       <div className="fixed inset-x-0 bottom-0 border-t border-zinc-200 bg-white/95 p-4 backdrop-blur">
-        <div className="mx-auto max-w-2xl">
-          {!checkoutOpen ? (
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs text-zinc-500">
-                    {order.table_number && `${order.table_number}番 `}
-                    {order.party_size}名 ・ {totalCount}点
-                  </p>
-                  <p className="text-2xl font-bold text-zinc-900">{formatYen(total)}</p>
-                </div>
-                <button
-                  onClick={openCheckout}
-                  disabled={lines.length === 0}
-                  className="rounded-full bg-zinc-900 px-6 py-3 text-sm font-semibold text-white active:bg-zinc-700 disabled:opacity-40"
-                >
-                  会計する
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="flex max-h-[70vh] flex-col gap-3 overflow-y-auto">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-zinc-500">お会計合計</span>
-                <span className="text-xl font-bold text-zinc-900">{formatYen(total)}</span>
-              </div>
-              <div className="text-right text-xs text-zinc-400">
-                {tax.taxable10 > 0 && <span>10%対象 {formatYen(tax.taxable10)}（内税{formatYen(tax.tax10)}）</span>}
-                {tax.taxable10 > 0 && tax.taxable8 > 0 && <span> ・ </span>}
-                {tax.taxable8 > 0 && <span>8%対象 {formatYen(tax.taxable8)}（内税{formatYen(tax.tax8)}）</span>}
-              </div>
-              <div className="text-right text-xs text-zinc-400">
-                税抜合計 {formatYen(taxExcludedTotal(tax))} ・ 内税合計 {formatYen(totalTax(tax))}
-              </div>
-
-              <PaymentLegs payments={payments} onRemove={removeLeg} />
-
-              {remaining > 0 && (
-                <>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-zinc-500">残り</span>
-                    <span className="font-semibold text-zinc-900">{formatYen(remaining)}</span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    {PAYMENT_METHODS.map((method) => (
-                      <button
-                        key={method}
-                        onClick={() => selectMethod(method)}
-                        className={`rounded-lg py-2 text-sm font-medium ${
-                          activeMethod === method
-                            ? "bg-zinc-900 text-white"
-                            : "bg-zinc-100 text-zinc-600"
-                        }`}
-                      >
-                        {PAYMENT_METHOD_LABELS[method]}
-                      </button>
-                    ))}
-                  </div>
-                  {activeMethod && (
-                    <div className="flex items-end gap-2">
-                      <label className="flex-1">
-                        <span className="mb-1 block text-xs font-semibold text-zinc-500">
-                          {activeMethod === "cash" ? "預かり金額" : "金額"}
-                        </span>
-                        <input
-                          type="number"
-                          inputMode="numeric"
-                          placeholder={activeMethod === "cash" ? "例: 2000" : undefined}
-                          value={amountInput}
-                          onChange={(e) => setAmountInput(e.target.value)}
-                          onFocus={(e) => e.target.select()}
-                          min={0}
-                          autoFocus
-                          className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
-                        />
-                      </label>
-                      {activeMethod === "cash" && (
-                        <div className="flex-1 text-right">
-                          <span className="mb-1 block text-xs font-semibold text-zinc-500">お釣り</span>
-                          <span className="text-lg font-bold text-zinc-900">
-                            {Number.isFinite(enteredAmount) && enteredAmount > 0
-                              ? formatYen(legChange)
-                              : "―"}
-                          </span>
-                        </div>
-                      )}
-                      <button
-                        onClick={addLeg}
-                        disabled={!canAddLeg}
-                        className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white active:bg-zinc-700 disabled:opacity-40"
-                      >
-                        追加
-                      </button>
-                    </div>
-                  )}
-                </>
-              )}
-
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setCheckoutOpen(false)}
-                  className="flex-1 rounded-full border border-zinc-300 px-4 py-3 text-sm font-medium text-zinc-600 active:bg-zinc-100"
-                >
-                  キャンセル
-                </button>
-                <button
-                  onClick={confirmCheckout}
-                  disabled={!canConfirm || completing}
-                  className="flex-1 rounded-full bg-zinc-900 px-4 py-3 text-sm font-semibold text-white active:bg-zinc-700 disabled:opacity-40"
-                >
-                  会計を確定
-                </button>
-              </div>
-            </div>
-          )}
+        <div className="mx-auto flex max-w-2xl items-center justify-between gap-3">
+          <div>
+            <p className="text-xs text-zinc-500">
+              {order.table_number && `${order.table_number}番 `}
+              {order.party_size}名 ・ {totalCount}点
+            </p>
+            <p className="text-2xl font-bold text-zinc-900">{formatYen(total)}</p>
+          </div>
+          <button
+            onClick={openCheckout}
+            disabled={lines.length === 0}
+            className="rounded-full bg-zinc-900 px-6 py-3 text-sm font-semibold text-white active:bg-zinc-700 disabled:opacity-40"
+          >
+            会計する
+          </button>
         </div>
       </div>
     </div>
