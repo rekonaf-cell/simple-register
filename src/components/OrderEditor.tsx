@@ -12,6 +12,7 @@ import {
   type Category,
   type MenuItem,
   type Order,
+  type OrderLine,
   type OrderLineTopping,
   type PaymentMethod,
   type PaymentSplit,
@@ -104,6 +105,7 @@ function OrderEditorReady({ orderId, order }: { orderId: string; order: Order })
   const [amountInput, setAmountInput] = useState("");
   const [completing, setCompleting] = useState(false);
   const [pickerItem, setPickerItem] = useState<MenuItem | null>(null);
+  const [editingLine, setEditingLine] = useState<OrderLine | null>(null);
   const [selectedToppingIds, setSelectedToppingIds] = useState<Set<string>>(new Set());
 
   const isCompleted = order.status === "completed";
@@ -136,10 +138,17 @@ function OrderEditorReady({ orderId, order }: { orderId: string; order: Order })
   function handleItemTap(item: MenuItem) {
     if (TOPPING_CATEGORIES.has(item.category)) {
       setSelectedToppingIds(new Set());
+      setEditingLine(null);
       setPickerItem(item);
     } else {
       addItemToOrder(item, []);
     }
+  }
+
+  function openToppingEditor(line: OrderLine) {
+    setSelectedToppingIds(new Set(line.toppings.map((t) => t.id)));
+    setPickerItem(null);
+    setEditingLine(line);
   }
 
   function toggleTopping(id: string) {
@@ -158,6 +167,29 @@ function OrderEditorReady({ orderId, order }: { orderId: string; order: Order })
       .map((t) => ({ id: t.id, name: t.name, price: t.price }));
     addItemToOrder(pickerItem, chosenToppings);
     setPickerItem(null);
+  }
+
+  function confirmEditToppings() {
+    if (!editingLine) return;
+    const chosenToppings: OrderLineTopping[] = toppings
+      .filter((t) => selectedToppingIds.has(t.id))
+      .map((t) => ({ id: t.id, name: t.name, price: t.price }));
+
+    const mergeTarget = lines.find(
+      (l) =>
+        l.id !== editingLine.id &&
+        l.menuItemId === editingLine.menuItemId &&
+        sameToppingSet(l.toppings, chosenToppings)
+    );
+
+    const next = mergeTarget
+      ? lines
+          .filter((l) => l.id !== editingLine.id)
+          .map((l) => (l.id === mergeTarget.id ? { ...l, qty: l.qty + editingLine.qty } : l))
+      : lines.map((l) => (l.id === editingLine.id ? { ...l, toppings: chosenToppings } : l));
+
+    updateOrderLines(orderId, next);
+    setEditingLine(null);
   }
 
   function changeQty(lineId: string, delta: number) {
@@ -476,21 +508,43 @@ function OrderEditorReady({ orderId, order }: { orderId: string; order: Order })
           </p>
         ) : (
           <ul className="divide-y divide-zinc-200 rounded-xl bg-white shadow">
-            {lines.map((line) => (
+            {lines.map((line) => {
+              const menuItem = menu.find((m) => m.id === line.menuItemId);
+              const canEditToppings = menuItem ? TOPPING_CATEGORIES.has(menuItem.category) : false;
+              return (
               <li key={line.id} className="flex items-center gap-2 px-3 py-2">
-                <div className="flex-1 min-w-0">
-                  <p className="truncate text-sm font-medium text-zinc-900">
-                    {line.name}
-                    {line.toppings.length > 0 && (
-                      <span className="text-zinc-500">
-                        （{line.toppings.map((t) => t.name).join("・")}）
-                      </span>
-                    )}
-                  </p>
-                  <p className="text-xs text-zinc-500">
-                    {formatYen(lineUnitPrice(line))} × {line.qty} = {formatYen(lineUnitPrice(line) * line.qty)}
-                  </p>
-                </div>
+                {canEditToppings ? (
+                  <button
+                    onClick={() => openToppingEditor(line)}
+                    className="flex-1 min-w-0 text-left"
+                  >
+                    <p className="truncate text-sm font-medium text-zinc-900">
+                      {line.name}
+                      {line.toppings.length > 0 && (
+                        <span className="text-zinc-500">
+                          （{line.toppings.map((t) => t.name).join("・")}）
+                        </span>
+                      )}
+                    </p>
+                    <p className="text-xs text-zinc-500">
+                      {formatYen(lineUnitPrice(line))} × {line.qty} = {formatYen(lineUnitPrice(line) * line.qty)}
+                    </p>
+                  </button>
+                ) : (
+                  <div className="flex-1 min-w-0">
+                    <p className="truncate text-sm font-medium text-zinc-900">
+                      {line.name}
+                      {line.toppings.length > 0 && (
+                        <span className="text-zinc-500">
+                          （{line.toppings.map((t) => t.name).join("・")}）
+                        </span>
+                      )}
+                    </p>
+                    <p className="text-xs text-zinc-500">
+                      {formatYen(lineUnitPrice(line))} × {line.qty} = {formatYen(lineUnitPrice(line) * line.qty)}
+                    </p>
+                  </div>
+                )}
                 <button
                   onClick={() => changeQty(line.id, -1)}
                   className="h-8 w-8 rounded-full bg-zinc-100 text-lg font-bold text-zinc-700 active:bg-zinc-200"
@@ -510,24 +564,36 @@ function OrderEditorReady({ orderId, order }: { orderId: string; order: Order })
                   削除
                 </button>
               </li>
-            ))}
+              );
+            })}
           </ul>
         )}
       </section>
 
-      {pickerItem && (
+      {(pickerItem || editingLine) && (
         <div className="fixed inset-0 z-20 flex items-end justify-center bg-black/40">
           <div className="w-full max-w-2xl rounded-t-2xl bg-white p-4">
             <div className="mb-3 flex items-center justify-between">
               <div>
-                <p className="text-base font-semibold text-zinc-900">{pickerItem.name}</p>
-                <p className="text-sm text-zinc-500">{formatYen(pickerItem.price)}</p>
+                <p className="text-base font-semibold text-zinc-900">
+                  {pickerItem ? pickerItem.name : editingLine!.name}
+                </p>
+                <p className="text-sm text-zinc-500">
+                  {formatYen(pickerItem ? pickerItem.price : editingLine!.price)}
+                </p>
               </div>
               <button
-                onClick={() => setPickerItem(null)}
-                className="text-sm text-zinc-500"
+                onClick={pickerItem ? confirmAddItem : confirmEditToppings}
+                className="rounded-full bg-zinc-900 px-4 py-2 text-sm font-semibold text-white active:bg-zinc-700"
               >
-                キャンセル
+                {pickerItem ? "追加" : "更新"}（
+                {formatYen(
+                  (pickerItem ? pickerItem.price : editingLine!.price) +
+                    toppings
+                      .filter((t) => selectedToppingIds.has(t.id))
+                      .reduce((sum, t) => sum + t.price, 0)
+                )}
+                ）
               </button>
             </div>
 
@@ -553,17 +619,13 @@ function OrderEditorReady({ orderId, order }: { orderId: string; order: Order })
             )}
 
             <button
-              onClick={confirmAddItem}
-              className="w-full rounded-full bg-zinc-900 px-4 py-3 text-sm font-semibold text-white active:bg-zinc-700"
+              onClick={() => {
+                setPickerItem(null);
+                setEditingLine(null);
+              }}
+              className="w-full rounded-full border border-zinc-300 px-4 py-3 text-sm font-medium text-zinc-600 active:bg-zinc-100"
             >
-              追加（
-              {formatYen(
-                pickerItem.price +
-                  toppings
-                    .filter((t) => selectedToppingIds.has(t.id))
-                    .reduce((sum, t) => sum + t.price, 0)
-              )}
-              ）
+              キャンセル
             </button>
           </div>
         </div>

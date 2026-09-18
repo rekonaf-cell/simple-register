@@ -117,5 +117,6 @@ export type DailyClosing = {
   total_guests: number;
   total_sales: number;
   totals_by_method: Partial<Record<PaymentMethod, number>>;
+  counts_by_method: Partial<Record<PaymentMethod, number>>;
   tax_breakdown: TaxBreakdown;
 };

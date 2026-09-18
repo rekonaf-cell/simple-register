@@ -115,10 +115,12 @@ function summarizeOrders(orders: Order[]) {
   const totalSales = orders.reduce((sum, order) => sum + order.total, 0);
   const totalGuests = orders.reduce((sum, order) => sum + order.party_size, 0);
   const totalsByMethod: Record<string, number> = {};
+  const countsByMethod: Record<string, number> = {};
   let taxBreakdown = EMPTY_TAX_BREAKDOWN;
   for (const order of orders) {
     for (const payment of order.payments) {
       totalsByMethod[payment.method] = (totalsByMethod[payment.method] ?? 0) + payment.amount;
+      countsByMethod[payment.method] = (countsByMethod[payment.method] ?? 0) + 1;
     }
     taxBreakdown = addTaxBreakdowns(taxBreakdown, computeTaxBreakdown(order.lines));
   }
@@ -127,6 +129,7 @@ function summarizeOrders(orders: Order[]) {
     total_guests: totalGuests,
     total_sales: totalSales,
     totals_by_method: totalsByMethod,
+    counts_by_method: countsByMethod,
     tax_breakdown: taxBreakdown,
   };
 }

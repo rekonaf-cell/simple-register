@@ -33,10 +33,12 @@ export default function ReportView() {
   const totalSales = orders.reduce((sum, o) => sum + o.total, 0);
   const totalGuests = orders.reduce((sum, o) => sum + o.party_size, 0);
   const totalsByMethod: Partial<Record<PaymentMethod, number>> = {};
+  const countsByMethod: Partial<Record<PaymentMethod, number>> = {};
   let taxBreakdown = EMPTY_TAX_BREAKDOWN;
   for (const o of orders) {
     for (const p of o.payments) {
       totalsByMethod[p.method] = (totalsByMethod[p.method] ?? 0) + p.amount;
+      countsByMethod[p.method] = (countsByMethod[p.method] ?? 0) + 1;
     }
     taxBreakdown = addTaxBreakdowns(taxBreakdown, computeTaxBreakdown(o.lines));
   }
@@ -85,7 +87,9 @@ export default function ReportView() {
                     .filter(([, amount]) => amount > 0)
                     .map(([method, amount]) => (
                       <div key={method}>
-                        <p className="text-xs text-zinc-500">{PAYMENT_METHOD_LABELS[method]}</p>
+                        <p className="text-xs text-zinc-500">
+                          {PAYMENT_METHOD_LABELS[method]}（{closing.counts_by_method?.[method] ?? 0}件）
+                        </p>
                         <p className="font-semibold">{formatYen(amount)}</p>
                       </div>
                     ))}
@@ -113,7 +117,9 @@ export default function ReportView() {
                     .filter(([, amount]) => amount > 0)
                     .map(([method, amount]) => (
                       <div key={method}>
-                        <p className="text-xs text-zinc-500">{PAYMENT_METHOD_LABELS[method]}</p>
+                        <p className="text-xs text-zinc-500">
+                          {PAYMENT_METHOD_LABELS[method]}（{countsByMethod[method] ?? 0}件）
+                        </p>
                         <p className="font-semibold">{formatYen(amount)}</p>
                       </div>
                     ))}
