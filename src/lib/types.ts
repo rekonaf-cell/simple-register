@@ -45,7 +45,6 @@ export type OrderLine = {
   price: number;
   qty: number;
   toppings: OrderLineTopping[];
-  served: boolean;
   taxRate: number;
 };
 

@@ -38,7 +38,6 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           </Link>
           <nav className="flex items-center gap-4 overflow-x-auto whitespace-nowrap text-sm font-medium text-zinc-600">
             <Link href="/">テーブル一覧</Link>
-            <Link href="/kitchen">キッチン</Link>
             <Link href="/report">売上</Link>
             <Link href="/menu">メニュー管理</Link>
             <Link href="/toppings">トッピング管理</Link>
