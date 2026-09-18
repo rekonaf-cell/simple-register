@@ -1,0 +1,8 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "crons": [
+    { "path": "/api/cron/interim-14", "schedule": "0 5 * * *" },
+    { "path": "/api/cron/interim-17", "schedule": "0 8 * * *" },
+    { "path": "/api/cron/interim-21", "schedule": "0 12 * * *" }
+  ]
+}

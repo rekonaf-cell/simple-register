@@ -1,37 +1,20 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import {
+  fetchCompletedOrders,
+  fetchInterimReports,
+} from "./reportSummary";
 import { supabase } from "./supabaseClient";
-import type { DailyClosing, Order } from "./types";
-import { addTaxBreakdowns, computeTaxBreakdown, EMPTY_TAX_BREAKDOWN } from "./useOrders";
+import type { DailyClosing, InterimReport, Order } from "./types";
 
-export function todayJst(): string {
-  return jstDateOf(new Date().toISOString());
-}
-
-export function jstDateOf(iso: string): string {
-  return new Date(iso).toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" });
-}
-
-function jstDayBoundsUtc(businessDate: string) {
-  const start = new Date(`${businessDate}T00:00:00+09:00`);
-  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
-  return { startIso: start.toISOString(), endIso: end.toISOString() };
-}
-
-async function fetchCompletedOrders(businessDate: string): Promise<Order[]> {
-  const { startIso, endIso } = jstDayBoundsUtc(businessDate);
-  const { data, error } = await supabase
-    .from("orders")
-    .select("*")
-    .eq("status", "completed")
-    .eq("is_practice", false)
-    .gte("completed_at", startIso)
-    .lt("completed_at", endIso)
-    .order("completed_at", { ascending: false });
-  if (error) throw error;
-  return data as Order[];
-}
+export {
+  closeDay,
+  jstDateOf,
+  recomputeClosingIfExists,
+  recordInterimSnapshot,
+  todayJst,
+} from "./reportSummary";
 
 export function useCompletedOrders(businessDate: string) {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -111,50 +94,38 @@ export function useDailyClosing(businessDate: string) {
   return { closing, loading };
 }
 
-function summarizeOrders(orders: Order[]) {
-  const totalSales = orders.reduce((sum, order) => sum + order.total, 0);
-  const totalGuests = orders.reduce((sum, order) => sum + order.party_size, 0);
-  const totalsByMethod: Record<string, number> = {};
-  const countsByMethod: Record<string, number> = {};
-  let taxBreakdown = EMPTY_TAX_BREAKDOWN;
-  for (const order of orders) {
-    for (const payment of order.payments) {
-      totalsByMethod[payment.method] = (totalsByMethod[payment.method] ?? 0) + payment.amount;
-      countsByMethod[payment.method] = (countsByMethod[payment.method] ?? 0) + 1;
-    }
-    taxBreakdown = addTaxBreakdowns(taxBreakdown, computeTaxBreakdown(order.lines));
-  }
-  return {
-    order_count: orders.length,
-    total_guests: totalGuests,
-    total_sales: totalSales,
-    totals_by_method: totalsByMethod,
-    counts_by_method: countsByMethod,
-    tax_breakdown: taxBreakdown,
-  };
-}
+export function useInterimReports(businessDate: string) {
+  const [reports, setReports] = useState<InterimReport[]>([]);
+  const [loading, setLoading] = useState(true);
 
-export async function closeDay(businessDate: string, orders: Order[]) {
-  const { error } = await supabase.from("daily_closings").insert({
-    business_date: businessDate,
-    ...summarizeOrders(orders),
-  });
-  if (error) throw error;
-}
+  useEffect(() => {
+    let active = true;
 
-export async function recomputeClosingIfExists(businessDate: string) {
-  const { data: existing, error: findError } = await supabase
-    .from("daily_closings")
-    .select("id")
-    .eq("business_date", businessDate)
-    .maybeSingle();
-  if (findError) throw findError;
-  if (!existing) return;
+    fetchInterimReports(businessDate).then((data) => {
+      if (active) {
+        setReports(data);
+        setLoading(false);
+      }
+    });
 
-  const orders = await fetchCompletedOrders(businessDate);
-  const { error } = await supabase
-    .from("daily_closings")
-    .update(summarizeOrders(orders))
-    .eq("id", existing.id);
-  if (error) throw error;
+    const channel = supabase
+      .channel(`interim_reports_${businessDate}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "interim_reports", filter: `business_date=eq.${businessDate}` },
+        () => {
+          fetchInterimReports(businessDate).then((data) => {
+            if (active) setReports(data);
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      active = false;
+      supabase.removeChannel(channel);
+    };
+  }, [businessDate]);
+
+  return { reports, loading };
 }

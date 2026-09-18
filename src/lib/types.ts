@@ -120,3 +120,19 @@ export type DailyClosing = {
   counts_by_method: Partial<Record<PaymentMethod, number>>;
   tax_breakdown: TaxBreakdown;
 };
+
+export const INTERIM_SLOTS = ["14:00", "17:00", "21:00"] as const;
+export type InterimSlot = (typeof INTERIM_SLOTS)[number];
+
+export type InterimReport = {
+  id: string;
+  business_date: string;
+  slot: InterimSlot;
+  recorded_at: string;
+  order_count: number;
+  total_guests: number;
+  total_sales: number;
+  totals_by_method: Partial<Record<PaymentMethod, number>>;
+  counts_by_method: Partial<Record<PaymentMethod, number>>;
+  tax_breakdown: TaxBreakdown;
+};

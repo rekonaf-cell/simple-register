@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { PAYMENT_METHOD_LABELS, type PaymentMethod } from "@/lib/types";
+import { INTERIM_SLOTS, PAYMENT_METHOD_LABELS, type InterimSlot, type PaymentMethod } from "@/lib/types";
 import {
   addTaxBreakdowns,
   computeTaxBreakdown,
@@ -10,7 +10,14 @@ import {
   taxExcludedTotal,
   totalTax,
 } from "@/lib/useOrders";
-import { closeDay, todayJst, useCompletedOrders, useDailyClosing } from "@/lib/useReport";
+import {
+  closeDay,
+  recordInterimSnapshot,
+  todayJst,
+  useCompletedOrders,
+  useDailyClosing,
+  useInterimReports,
+} from "@/lib/useReport";
 
 function formatYen(amount: number) {
   return `¥${amount.toLocaleString("ja-JP")}`;
@@ -28,7 +35,18 @@ export default function ReportView() {
   const [date, setDate] = useState(todayJst());
   const { orders, loading: ordersLoading } = useCompletedOrders(date);
   const { closing, loading: closingLoading } = useDailyClosing(date);
+  const { reports: interimReports } = useInterimReports(date);
   const [closingBusy, setClosingBusy] = useState(false);
+  const [recordingSlot, setRecordingSlot] = useState<InterimSlot | null>(null);
+
+  async function handleRecordInterim(slot: InterimSlot) {
+    setRecordingSlot(slot);
+    try {
+      await recordInterimSnapshot(slot);
+    } finally {
+      setRecordingSlot(null);
+    }
+  }
 
   const totalSales = orders.reduce((sum, o) => sum + o.total, 0);
   const totalGuests = orders.reduce((sum, o) => sum + o.party_size, 0);
@@ -140,6 +158,52 @@ export default function ReportView() {
                 </button>
               </div>
             )}
+          </section>
+
+          <section>
+            <h2 className="mb-2 text-sm font-semibold text-zinc-500">中間計</h2>
+            <ul className="flex flex-col gap-2">
+              {INTERIM_SLOTS.map((slot) => {
+                const report = interimReports.find((r) => r.slot === slot);
+                return (
+                  <li key={slot} className="rounded-xl bg-white p-3 shadow">
+                    {report ? (
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-semibold text-zinc-900">{slot}時点</span>
+                          <span className="text-xs text-zinc-400">{formatTime(report.recorded_at)}記録</span>
+                        </div>
+                        <p className="text-xl font-bold text-zinc-900">{formatYen(report.total_sales)}</p>
+                        <p className="text-xs text-zinc-500">
+                          {report.order_count}組 ・ {report.total_guests}名
+                        </p>
+                        <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-zinc-500">
+                          {(Object.entries(report.totals_by_method) as [PaymentMethod, number][])
+                            .filter(([, amount]) => amount > 0)
+                            .map(([method, amount]) => (
+                              <span key={method}>
+                                {PAYMENT_METHOD_LABELS[method]}（{report.counts_by_method?.[method] ?? 0}件）
+                                {formatYen(amount)}
+                              </span>
+                            ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-zinc-400">{slot}時点 ・ 未記録</span>
+                        <button
+                          onClick={() => handleRecordInterim(slot)}
+                          disabled={recordingSlot === slot}
+                          className="rounded-full border border-zinc-300 px-3 py-1 text-xs font-medium text-zinc-600 active:bg-zinc-100 disabled:opacity-40"
+                        >
+                          今すぐ記録
+                        </button>
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
           </section>
 
           <section>
