@@ -37,6 +37,13 @@ function formatYen(amount: number) {
   return `¥${amount.toLocaleString("ja-JP")}`;
 }
 
+function speakOokini() {
+  if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+  const utterance = new SpeechSynthesisUtterance("おおきに");
+  utterance.lang = "ja-JP";
+  window.speechSynthesis.speak(utterance);
+}
+
 function sameToppingSet(a: OrderLineTopping[], b: OrderLineTopping[]) {
   if (a.length !== b.length) return false;
   const aIds = new Set(a.map((t) => t.id));
@@ -71,21 +78,26 @@ function PaymentLegs({ payments, onRemove }: { payments: PaymentSplit[]; onRemov
   return (
     <ul className="divide-y divide-zinc-200 rounded-lg bg-zinc-50">
       {payments.map((p, i) => (
-        <li key={i} className="flex items-center justify-between px-3 py-2 text-sm">
-          <div>
+        <li key={i} className="flex flex-col gap-2 px-3 py-3 text-sm">
+          <div className="flex items-center justify-between">
             <span className="font-medium text-zinc-900">{PAYMENT_METHOD_LABELS[p.method]}</span>
-            {p.method === "cash" && p.received !== undefined && (
-              <span className="ml-2 text-xs text-zinc-500">
-                預かり{formatYen(p.received)} ・ お釣り{formatYen(p.change ?? 0)}
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-zinc-900">{formatYen(p.amount)}</span>
+              <button onClick={() => onRemove(i)} className="text-xs text-red-500">
+                削除
+              </button>
+            </div>
+          </div>
+          {p.method === "cash" && p.received !== undefined && (
+            <div className="flex items-center justify-between">
+              <span className="text-zinc-500">
+                預かり <span className="text-xl font-bold text-zinc-900">{formatYen(p.received)}</span>
               </span>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="font-semibold text-zinc-900">{formatYen(p.amount)}</span>
-            <button onClick={() => onRemove(i)} className="text-xs text-red-500">
-              削除
-            </button>
-          </div>
+              <span className="text-zinc-500">
+                お釣り <span className="text-xl font-bold text-zinc-900">{formatYen(p.change ?? 0)}</span>
+              </span>
+            </div>
+          )}
         </li>
       ))}
     </ul>
@@ -252,6 +264,7 @@ function OrderEditorReady({ orderId, order }: { orderId: string; order: Order })
     setCompleting(true);
     try {
       await completeOrder(orderId, payments);
+      speakOokini();
       router.push("/");
     } finally {
       setCompleting(false);
