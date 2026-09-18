@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { PAYMENT_METHOD_LABELS, type PaymentMethod } from "@/lib/types";
 import {
   addTaxBreakdowns,
@@ -144,21 +145,26 @@ export default function ReportView() {
             ) : (
               <ul className="divide-y divide-zinc-200 rounded-xl bg-white shadow">
                 {orders.map((o) => (
-                  <li key={o.id} className="flex items-center justify-between gap-2 px-3 py-2">
-                    <div>
-                      <p className="text-sm font-medium text-zinc-900">
-                        {o.table_number ? `${o.table_number}番` : "番号未設定"} ・ {o.party_size}名
-                      </p>
-                      <p className="text-xs text-zinc-500">
-                        {o.completed_at && formatTime(o.completed_at)} ・{" "}
-                        {o.payments.length > 0
-                          ? o.payments
-                              .map((p) => `${PAYMENT_METHOD_LABELS[p.method]} ${formatYen(p.amount)}`)
-                              .join(" + ")
-                          : "―"}
-                      </p>
-                    </div>
-                    <p className="text-sm font-semibold text-zinc-900">{formatYen(o.total)}</p>
+                  <li key={o.id}>
+                    <Link
+                      href={`/order/${o.id}`}
+                      className="flex items-center justify-between gap-2 px-3 py-2 active:bg-zinc-50"
+                    >
+                      <div>
+                        <p className="text-sm font-medium text-zinc-900">
+                          {o.table_number ? `${o.table_number}番` : "番号未設定"} ・ {o.party_size}名
+                        </p>
+                        <p className="text-xs text-zinc-500">
+                          {o.completed_at && formatTime(o.completed_at)} ・{" "}
+                          {o.payments.length > 0
+                            ? o.payments
+                                .map((p) => `${PAYMENT_METHOD_LABELS[p.method]} ${formatYen(p.amount)}`)
+                                .join(" + ")
+                            : "―"}
+                        </p>
+                      </div>
+                      <p className="text-sm font-semibold text-zinc-900">{formatYen(o.total)}</p>
+                    </Link>
                   </li>
                 ))}
               </ul>

@@ -183,6 +183,11 @@ export async function completeOrder(id: string, payments: PaymentSplit[]) {
   if (error) throw error;
 }
 
+export async function updateOrderPayments(id: string, payments: PaymentSplit[]) {
+  const { error } = await supabase.from("orders").update({ payments }).eq("id", id);
+  if (error) throw error;
+}
+
 export async function deleteOrder(id: string) {
   const { error } = await supabase.from("orders").delete().eq("id", id);
   if (error) throw error;

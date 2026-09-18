@@ -11,6 +11,7 @@ import {
   taxRateForCategory,
   type Category,
   type MenuItem,
+  type Order,
   type OrderLineTopping,
   type PaymentMethod,
   type PaymentSplit,
@@ -25,8 +26,10 @@ import {
   totalTax,
   updateOrderLines,
   updateOrderMeta,
+  updateOrderPayments,
   useOrder,
 } from "@/lib/useOrders";
+import { jstDateOf, recomputeClosingIfExists } from "@/lib/useReport";
 import { useToppings } from "@/lib/useToppings";
 
 function formatYen(amount: number) {
@@ -40,18 +43,7 @@ function sameToppingSet(a: OrderLineTopping[], b: OrderLineTopping[]) {
 }
 
 export default function OrderEditor({ orderId }: { orderId: string }) {
-  const router = useRouter();
-  const { menu } = useMenu();
-  const { toppings } = useToppings();
   const { order, loading } = useOrder(orderId);
-  const [activeCategory, setActiveCategory] = useState<Category>(CATEGORIES[0]);
-  const [checkoutOpen, setCheckoutOpen] = useState(false);
-  const [payments, setPayments] = useState<PaymentSplit[]>([]);
-  const [activeMethod, setActiveMethod] = useState<PaymentMethod | null>(null);
-  const [amountInput, setAmountInput] = useState("");
-  const [completing, setCompleting] = useState(false);
-  const [pickerItem, setPickerItem] = useState<MenuItem | null>(null);
-  const [selectedToppingIds, setSelectedToppingIds] = useState<Set<string>>(new Set());
 
   if (loading) {
     return <p className="p-4 text-sm text-zinc-500">読み込み中...</p>;
@@ -70,6 +62,51 @@ export default function OrderEditor({ orderId }: { orderId: string }) {
     );
   }
 
+  return <OrderEditorReady key={orderId} orderId={orderId} order={order} />;
+}
+
+function PaymentLegs({ payments, onRemove }: { payments: PaymentSplit[]; onRemove: (i: number) => void }) {
+  if (payments.length === 0) return null;
+  return (
+    <ul className="divide-y divide-zinc-200 rounded-lg bg-zinc-50">
+      {payments.map((p, i) => (
+        <li key={i} className="flex items-center justify-between px-3 py-2 text-sm">
+          <div>
+            <span className="font-medium text-zinc-900">{PAYMENT_METHOD_LABELS[p.method]}</span>
+            {p.method === "cash" && p.received !== undefined && (
+              <span className="ml-2 text-xs text-zinc-500">
+                預かり{formatYen(p.received)} ・ お釣り{formatYen(p.change ?? 0)}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-zinc-900">{formatYen(p.amount)}</span>
+            <button onClick={() => onRemove(i)} className="text-xs text-red-500">
+              削除
+            </button>
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function OrderEditorReady({ orderId, order }: { orderId: string; order: Order }) {
+  const router = useRouter();
+  const { menu } = useMenu();
+  const { toppings } = useToppings();
+  const [activeCategory, setActiveCategory] = useState<Category>(CATEGORIES[0]);
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [payments, setPayments] = useState<PaymentSplit[]>(() =>
+    order.status === "completed" ? order.payments : []
+  );
+  const [activeMethod, setActiveMethod] = useState<PaymentMethod | null>(null);
+  const [amountInput, setAmountInput] = useState("");
+  const [completing, setCompleting] = useState(false);
+  const [pickerItem, setPickerItem] = useState<MenuItem | null>(null);
+  const [selectedToppingIds, setSelectedToppingIds] = useState<Set<string>>(new Set());
+
+  const isCompleted = order.status === "completed";
   const lines = order.lines;
   const total = order.total;
   const totalCount = lines.reduce((sum, l) => sum + l.qty, 0);
@@ -192,10 +229,142 @@ export default function OrderEditor({ orderId }: { orderId: string }) {
     }
   }
 
+  async function savePaymentEdit() {
+    if (!canConfirm) return;
+    setCompleting(true);
+    try {
+      await updateOrderPayments(orderId, payments);
+      if (order.completed_at) {
+        await recomputeClosingIfExists(jstDateOf(order.completed_at));
+      }
+      router.push("/report");
+    } finally {
+      setCompleting(false);
+    }
+  }
+
   async function removeTable() {
     if (!window.confirm("このテーブルを削除しますか？注文内容も失われます。")) return;
     await deleteOrder(orderId);
     router.push("/");
+  }
+
+  if (isCompleted) {
+    return (
+      <div className="flex flex-1 flex-col gap-4 p-4 pb-8">
+        <div className="flex items-center justify-between">
+          <Link href="/report" className="text-sm text-zinc-500">
+            ← 売上に戻る
+          </Link>
+        </div>
+
+        {order.is_practice && (
+          <div className="rounded-xl bg-amber-50 px-4 py-2 text-center text-xs font-semibold text-amber-700">
+            練習モードの注文です（売上に反映されません）
+          </div>
+        )}
+
+        <div className="rounded-xl bg-blue-50 px-4 py-2 text-center text-xs font-semibold text-blue-700">
+          会計済みの内容です。支払い方法を修正して保存できます。
+        </div>
+
+        <section className="rounded-xl bg-white p-4 shadow">
+          <p className="text-sm font-semibold text-zinc-900">
+            {order.table_number ? `${order.table_number}番` : "番号未設定"} ・ {order.party_size}名
+          </p>
+          <ul className="mt-3 divide-y divide-zinc-200">
+            {lines.map((line) => (
+              <li key={line.id} className="py-2">
+                <p className="text-sm font-medium text-zinc-900">
+                  {line.name}
+                  {line.toppings.length > 0 && (
+                    <span className="text-zinc-500">
+                      （{line.toppings.map((t) => t.name).join("・")}）
+                    </span>
+                  )}
+                </p>
+                <p className="text-xs text-zinc-500">
+                  {formatYen(lineUnitPrice(line))} × {line.qty} = {formatYen(lineUnitPrice(line) * line.qty)}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <section className="flex flex-col gap-3 rounded-xl bg-white p-4 shadow">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-zinc-500">お会計合計</span>
+            <span className="text-xl font-bold text-zinc-900">{formatYen(total)}</span>
+          </div>
+          <div className="text-right text-xs text-zinc-400">
+            {tax.taxable10 > 0 && <span>10%対象 {formatYen(tax.taxable10)}（内税{formatYen(tax.tax10)}）</span>}
+            {tax.taxable10 > 0 && tax.taxable8 > 0 && <span> ・ </span>}
+            {tax.taxable8 > 0 && <span>8%対象 {formatYen(tax.taxable8)}（内税{formatYen(tax.tax8)}）</span>}
+          </div>
+          <div className="text-right text-xs text-zinc-400">
+            税抜合計 {formatYen(taxExcludedTotal(tax))} ・ 内税合計 {formatYen(totalTax(tax))}
+          </div>
+
+          <PaymentLegs payments={payments} onRemove={removeLeg} />
+
+          {remaining !== 0 && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-zinc-500">{remaining > 0 ? "残り" : "超過"}</span>
+              <span className="font-semibold text-zinc-900">{formatYen(Math.abs(remaining))}</span>
+            </div>
+          )}
+
+          <div className="grid grid-cols-3 gap-2">
+            {PAYMENT_METHODS.map((method) => (
+              <button
+                key={method}
+                onClick={() => selectMethod(method)}
+                className={`rounded-lg py-2 text-sm font-medium ${
+                  activeMethod === method ? "bg-zinc-900 text-white" : "bg-zinc-100 text-zinc-600"
+                }`}
+              >
+                {PAYMENT_METHOD_LABELS[method]}
+              </button>
+            ))}
+          </div>
+          {activeMethod && (
+            <div className="flex items-end gap-2">
+              <label className="flex-1">
+                <span className="mb-1 block text-xs font-semibold text-zinc-500">
+                  {activeMethod === "cash" ? "預かり金額" : "金額"}
+                </span>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  placeholder={activeMethod === "cash" ? "例: 2000" : undefined}
+                  value={amountInput}
+                  onChange={(e) => setAmountInput(e.target.value)}
+                  onFocus={(e) => e.target.select()}
+                  min={0}
+                  autoFocus
+                  className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+                />
+              </label>
+              <button
+                onClick={addLeg}
+                disabled={!canAddLeg}
+                className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white active:bg-zinc-700 disabled:opacity-40"
+              >
+                追加
+              </button>
+            </div>
+          )}
+
+          <button
+            onClick={savePaymentEdit}
+            disabled={!canConfirm || completing}
+            className="mt-2 rounded-full bg-zinc-900 px-4 py-3 text-sm font-semibold text-white active:bg-zinc-700 disabled:opacity-40"
+          >
+            保存する
+          </button>
+        </section>
+      </div>
+    );
   }
 
   return (
@@ -453,28 +622,7 @@ export default function OrderEditor({ orderId }: { orderId: string }) {
                 税抜合計 {formatYen(taxExcludedTotal(tax))} ・ 内税合計 {formatYen(totalTax(tax))}
               </div>
 
-              {payments.length > 0 && (
-                <ul className="divide-y divide-zinc-200 rounded-lg bg-zinc-50">
-                  {payments.map((p, i) => (
-                    <li key={i} className="flex items-center justify-between px-3 py-2 text-sm">
-                      <div>
-                        <span className="font-medium text-zinc-900">{PAYMENT_METHOD_LABELS[p.method]}</span>
-                        {p.method === "cash" && p.received !== undefined && (
-                          <span className="ml-2 text-xs text-zinc-500">
-                            預かり{formatYen(p.received)} ・ お釣り{formatYen(p.change ?? 0)}
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold text-zinc-900">{formatYen(p.amount)}</span>
-                        <button onClick={() => removeLeg(i)} className="text-xs text-red-500">
-                          削除
-                        </button>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
+              <PaymentLegs payments={payments} onRemove={removeLeg} />
 
               {remaining > 0 && (
                 <>

@@ -6,7 +6,11 @@ import type { DailyClosing, Order } from "./types";
 import { addTaxBreakdowns, computeTaxBreakdown, EMPTY_TAX_BREAKDOWN } from "./useOrders";
 
 export function todayJst(): string {
-  return new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" });
+  return jstDateOf(new Date().toISOString());
+}
+
+export function jstDateOf(iso: string): string {
+  return new Date(iso).toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" });
 }
 
 function jstDayBoundsUtc(businessDate: string) {
@@ -107,7 +111,7 @@ export function useDailyClosing(businessDate: string) {
   return { closing, loading };
 }
 
-export async function closeDay(businessDate: string, orders: Order[]) {
+function summarizeOrders(orders: Order[]) {
   const totalSales = orders.reduce((sum, order) => sum + order.total, 0);
   const totalGuests = orders.reduce((sum, order) => sum + order.party_size, 0);
   const totalsByMethod: Record<string, number> = {};
@@ -118,14 +122,36 @@ export async function closeDay(businessDate: string, orders: Order[]) {
     }
     taxBreakdown = addTaxBreakdowns(taxBreakdown, computeTaxBreakdown(order.lines));
   }
-
-  const { error } = await supabase.from("daily_closings").insert({
-    business_date: businessDate,
+  return {
     order_count: orders.length,
     total_guests: totalGuests,
     total_sales: totalSales,
     totals_by_method: totalsByMethod,
     tax_breakdown: taxBreakdown,
+  };
+}
+
+export async function closeDay(businessDate: string, orders: Order[]) {
+  const { error } = await supabase.from("daily_closings").insert({
+    business_date: businessDate,
+    ...summarizeOrders(orders),
   });
+  if (error) throw error;
+}
+
+export async function recomputeClosingIfExists(businessDate: string) {
+  const { data: existing, error: findError } = await supabase
+    .from("daily_closings")
+    .select("id")
+    .eq("business_date", businessDate)
+    .maybeSingle();
+  if (findError) throw findError;
+  if (!existing) return;
+
+  const orders = await fetchCompletedOrders(businessDate);
+  const { error } = await supabase
+    .from("daily_closings")
+    .update(summarizeOrders(orders))
+    .eq("id", existing.id);
   if (error) throw error;
 }
