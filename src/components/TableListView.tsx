@@ -115,7 +115,12 @@ export default function TableListView() {
       ) : (
         <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           {orders.map((order) => (
-            <li key={order.id} className="flex overflow-hidden rounded-xl bg-white shadow">
+            <li
+              key={order.id}
+              className={`flex overflow-hidden rounded-xl shadow ${
+                order.served ? "bg-emerald-50" : "bg-amber-50"
+              }`}
+            >
               <Link href={`/order/${order.id}`} className="flex-1 p-4 active:bg-black/5">
                 <p className="text-base font-semibold text-zinc-900">
                   {order.table_number ? `${order.table_number}番` : "番号未設定"} ・ {order.party_size}名
@@ -124,17 +129,23 @@ export default function TableListView() {
                   {order.lines.reduce((sum, l) => sum + l.qty, 0)}点 ・ {formatYen(order.total)}
                 </p>
               </Link>
-              <button
-                onClick={() => toggleServed(order)}
-                className={`flex w-28 shrink-0 flex-col items-center justify-center gap-1 text-sm font-bold ${
-                  order.served
-                    ? "bg-emerald-500 text-white active:bg-emerald-600"
-                    : "bg-amber-50 text-amber-700 active:bg-amber-100"
-                }`}
-              >
-                <span className="text-xl">{order.served ? "✓" : "○"}</span>
-                <span>{order.served ? "提供済み" : "未提供"}</span>
-              </button>
+              {order.served ? (
+                <Link
+                  href={`/order/${order.id}?checkout=1`}
+                  className="flex w-28 shrink-0 flex-col items-center justify-center gap-1 bg-emerald-500 text-sm font-bold text-white active:bg-emerald-600"
+                >
+                  <span className="text-xl">✓</span>
+                  <span>会計</span>
+                </Link>
+              ) : (
+                <button
+                  onClick={() => toggleServed(order)}
+                  className="flex w-28 shrink-0 flex-col items-center justify-center gap-1 bg-amber-400 text-sm font-bold text-white active:bg-amber-500"
+                >
+                  <span className="text-xl">○</span>
+                  <span>未提供</span>
+                </button>
+              )}
             </li>
           ))}
         </ul>

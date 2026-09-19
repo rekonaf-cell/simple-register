@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   CATEGORIES,
   PAYMENT_METHODS,
@@ -106,10 +106,13 @@ function PaymentLegs({ payments, onRemove }: { payments: PaymentSplit[]; onRemov
 
 function OrderEditorReady({ orderId, order }: { orderId: string; order: Order }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { menu } = useMenu();
   const { toppings } = useToppings();
   const [activeCategory, setActiveCategory] = useState<Category>(CATEGORIES[0]);
-  const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [checkoutOpen, setCheckoutOpen] = useState(
+    () => order.status !== "completed" && searchParams.get("checkout") === "1"
+  );
   const [payments, setPayments] = useState<PaymentSplit[]>(() =>
     order.status === "completed" ? order.payments : []
   );
