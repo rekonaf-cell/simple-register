@@ -107,7 +107,10 @@ export default function ReportView() {
                 <p className="text-sm font-semibold text-emerald-600">
                   精算済み（{new Date(closing.closed_at).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" })}）
                 </p>
-                <p className="text-3xl font-bold text-zinc-900">{formatYen(closing.total_sales)}</p>
+                <p className="text-3xl font-bold text-zinc-900">
+                  {formatYen(taxExcludedTotal(closing.tax_breakdown ?? EMPTY_TAX_BREAKDOWN))}
+                </p>
+                <p className="text-xs text-zinc-500">税込 {formatYen(closing.total_sales)}</p>
                 <p className="text-xs text-zinc-500">
                   {closing.order_count}組 ・ {closing.total_guests ?? 0}名
                 </p>
@@ -129,15 +132,14 @@ export default function ReportView() {
                   {formatYen(closing.tax_breakdown?.taxable8 ?? 0)}（税{formatYen(closing.tax_breakdown?.tax8 ?? 0)}）
                 </div>
                 <div className="text-xs text-zinc-500">
-                  税抜合計　{formatYen(taxExcludedTotal(closing.tax_breakdown ?? EMPTY_TAX_BREAKDOWN))} ・
-                  内税合計{" "}
-                  {formatYen(totalTax(closing.tax_breakdown ?? EMPTY_TAX_BREAKDOWN))}
+                  内税合計　{formatYen(totalTax(closing.tax_breakdown ?? EMPTY_TAX_BREAKDOWN))}
                 </div>
               </div>
             ) : (
               <div className="flex flex-col gap-2">
                 <p className="text-sm text-zinc-500">未精算（{date}の集計）</p>
-                <p className="text-3xl font-bold text-zinc-900">{formatYen(totalSales)}</p>
+                <p className="text-3xl font-bold text-zinc-900">{formatYen(taxExcludedTotal(taxBreakdown))}</p>
+                <p className="text-xs text-zinc-500">税込 {formatYen(totalSales)}</p>
                 <p className="text-xs text-zinc-500">
                   {orders.length}組 ・ {totalGuests}名
                 </p>
@@ -157,9 +159,7 @@ export default function ReportView() {
                   内消費税　10%対象 {formatYen(taxBreakdown.taxable10)}（税{formatYen(taxBreakdown.tax10)}） ・
                   8%対象 {formatYen(taxBreakdown.taxable8)}（税{formatYen(taxBreakdown.tax8)}）
                 </div>
-                <div className="text-xs text-zinc-500">
-                  税抜合計　{formatYen(taxExcludedTotal(taxBreakdown))} ・ 内税合計　{formatYen(totalTax(taxBreakdown))}
-                </div>
+                <div className="text-xs text-zinc-500">内税合計　{formatYen(totalTax(taxBreakdown))}</div>
                 <button
                   onClick={handleCloseDay}
                   disabled={orders.length === 0 || closingBusy}
@@ -193,10 +193,11 @@ export default function ReportView() {
                             </button>
                           </div>
                         </div>
-                        <p className="text-xl font-bold text-zinc-900">{formatYen(report.total_sales)}</p>
-                        <p className="text-xs text-zinc-500">
-                          {report.order_count}組 ・ {report.total_guests}名 ・ 税抜{" "}
+                        <p className="text-xl font-bold text-zinc-900">
                           {formatYen(taxExcludedTotal(report.tax_breakdown ?? EMPTY_TAX_BREAKDOWN))}
+                        </p>
+                        <p className="text-xs text-zinc-500">
+                          税込 {formatYen(report.total_sales)} ・ {report.order_count}組 ・ {report.total_guests}名
                         </p>
                         <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-zinc-500">
                           {(Object.entries(report.totals_by_method) as [PaymentMethod, number][])
