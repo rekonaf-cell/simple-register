@@ -37,6 +37,17 @@ function formatTime(iso: string) {
   });
 }
 
+function creditTotals(totalsByMethod: Partial<Record<PaymentMethod, number>>) {
+  const dpay = totalsByMethod.dpay ?? 0;
+  const total =
+    (totalsByMethod.credit ?? 0) +
+    (totalsByMethod.qr ?? 0) +
+    dpay +
+    (totalsByMethod.other ?? 0) +
+    (totalsByMethod.pitapa ?? 0);
+  return { total, quasi: total - dpay };
+}
+
 export default function ReportView() {
   const [date, setDate] = useState(todayJst());
   const { orders, loading: ordersLoading } = useCompletedOrders(date);
@@ -126,6 +137,16 @@ export default function ReportView() {
                       </div>
                     ))}
                 </div>
+                <div className="mt-1 border-t border-zinc-100 pt-2 grid grid-cols-2 gap-2 text-sm">
+                  <div>
+                    <p className="text-xs text-zinc-500">総クレジット</p>
+                    <p className="font-semibold">{formatYen(creditTotals(closing.totals_by_method).total)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-zinc-500">準クレジット</p>
+                    <p className="font-semibold">{formatYen(creditTotals(closing.totals_by_method).quasi)}</p>
+                  </div>
+                </div>
                 <div className="mt-1 border-t border-zinc-100 pt-2 text-xs text-zinc-500">
                   内消費税　10%対象 {formatYen(closing.tax_breakdown?.taxable10 ?? 0)}（税
                   {formatYen(closing.tax_breakdown?.tax10 ?? 0)}） ・ 8%対象{" "}
@@ -154,6 +175,16 @@ export default function ReportView() {
                         <p className="font-semibold">{formatYen(amount)}</p>
                       </div>
                     ))}
+                </div>
+                <div className="mt-1 border-t border-zinc-100 pt-2 grid grid-cols-2 gap-2 text-sm">
+                  <div>
+                    <p className="text-xs text-zinc-500">総クレジット</p>
+                    <p className="font-semibold">{formatYen(creditTotals(totalsByMethod).total)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-zinc-500">準クレジット</p>
+                    <p className="font-semibold">{formatYen(creditTotals(totalsByMethod).quasi)}</p>
+                  </div>
                 </div>
                 <div className="mt-1 border-t border-zinc-100 pt-2 text-xs text-zinc-500">
                   内消費税　10%対象 {formatYen(taxBreakdown.taxable10)}（税{formatYen(taxBreakdown.tax10)}） ・
