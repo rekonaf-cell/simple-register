@@ -2,14 +2,14 @@ export const CATEGORIES = [
   "お好み焼",
   "焼そば",
   "ネギ焼",
-  "テイクアウト",
   "一品",
   "ソフトドリンク",
-  "アルコール",
   "ビール",
   "ハイボール",
   "サワー",
+  "アルコール",
   "その他",
+  "テイクアウト",
 ] as const;
 export type Category = (typeof CATEGORIES)[number];
 
