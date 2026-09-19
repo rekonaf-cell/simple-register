@@ -175,7 +175,8 @@ export default function ReportView() {
                         </div>
                         <p className="text-xl font-bold text-zinc-900">{formatYen(report.total_sales)}</p>
                         <p className="text-xs text-zinc-500">
-                          {report.order_count}組 ・ {report.total_guests}名
+                          {report.order_count}組 ・ {report.total_guests}名 ・ 税抜{" "}
+                          {formatYen(taxExcludedTotal(report.tax_breakdown ?? EMPTY_TAX_BREAKDOWN))}
                         </p>
                         <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-zinc-500">
                           {(Object.entries(report.totals_by_method) as [PaymentMethod, number][])
