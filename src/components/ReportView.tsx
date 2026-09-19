@@ -2,7 +2,13 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { INTERIM_SLOTS, PAYMENT_METHOD_LABELS, type InterimSlot, type PaymentMethod } from "@/lib/types";
+import {
+  INTERIM_SLOTS,
+  PAYMENT_METHOD_LABELS,
+  PAYMENT_METHODS,
+  type InterimSlot,
+  type PaymentMethod,
+} from "@/lib/types";
 import {
   addTaxBreakdowns,
   computeTaxBreakdown,
@@ -38,6 +44,7 @@ export default function ReportView() {
   const { reports: interimReports } = useInterimReports(date);
   const [closingBusy, setClosingBusy] = useState(false);
   const [recordingSlot, setRecordingSlot] = useState<InterimSlot | null>(null);
+  const [methodFilter, setMethodFilter] = useState<PaymentMethod | "all">("all");
 
   async function handleRecordInterim(slot: InterimSlot) {
     setRecordingSlot(slot);
@@ -71,6 +78,10 @@ export default function ReportView() {
       setClosingBusy(false);
     }
   }
+
+  const availableMethods = PAYMENT_METHODS.filter((m) => (totalsByMethod[m] ?? 0) > 0);
+  const filteredOrders =
+    methodFilter === "all" ? orders : orders.filter((o) => o.payments.some((p) => p.method === methodFilter));
 
   const loading = ordersLoading || closingLoading;
 
@@ -209,13 +220,40 @@ export default function ReportView() {
 
           <section>
             <h2 className="mb-2 text-sm font-semibold text-zinc-500">会計履歴</h2>
+            {orders.length > 0 && (
+              <div className="mb-2 flex gap-2 overflow-x-auto pb-1">
+                <button
+                  onClick={() => setMethodFilter("all")}
+                  className={`shrink-0 rounded-full px-4 py-2 text-sm font-medium ${
+                    methodFilter === "all" ? "bg-zinc-900 text-white" : "bg-white text-zinc-600 shadow"
+                  }`}
+                >
+                  すべて
+                </button>
+                {availableMethods.map((method) => (
+                  <button
+                    key={method}
+                    onClick={() => setMethodFilter(method)}
+                    className={`shrink-0 rounded-full px-4 py-2 text-sm font-medium ${
+                      methodFilter === method ? "bg-zinc-900 text-white" : "bg-white text-zinc-600 shadow"
+                    }`}
+                  >
+                    {PAYMENT_METHOD_LABELS[method]}
+                  </button>
+                ))}
+              </div>
+            )}
             {orders.length === 0 ? (
               <p className="rounded-lg border border-dashed border-zinc-300 p-4 text-center text-sm text-zinc-500">
                 この日の会計履歴はありません。
               </p>
+            ) : filteredOrders.length === 0 ? (
+              <p className="rounded-lg border border-dashed border-zinc-300 p-4 text-center text-sm text-zinc-500">
+                この条件に一致する会計履歴はありません。
+              </p>
             ) : (
               <ul className="divide-y divide-zinc-200 rounded-xl bg-white shadow">
-                {orders.map((o) => (
+                {filteredOrders.map((o) => (
                   <li key={o.id}>
                     <Link
                       href={`/order/${o.id}`}
