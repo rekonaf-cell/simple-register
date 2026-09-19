@@ -115,11 +115,8 @@ export default function TableListView() {
       ) : (
         <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           {orders.map((order) => (
-            <li
-              key={order.id}
-              className={`rounded-xl shadow ${order.served ? "bg-emerald-50" : "bg-white"}`}
-            >
-              <Link href={`/order/${order.id}`} className="block p-4 active:bg-black/5">
+            <li key={order.id} className="flex overflow-hidden rounded-xl bg-white shadow">
+              <Link href={`/order/${order.id}`} className="flex-1 p-4 active:bg-black/5">
                 <p className="text-base font-semibold text-zinc-900">
                   {order.table_number ? `${order.table_number}番` : "番号未設定"} ・ {order.party_size}名
                 </p>
@@ -129,13 +126,14 @@ export default function TableListView() {
               </Link>
               <button
                 onClick={() => toggleServed(order)}
-                className={`w-full rounded-b-xl px-4 py-2 text-sm font-semibold ${
+                className={`flex w-28 shrink-0 flex-col items-center justify-center gap-1 text-sm font-bold ${
                   order.served
                     ? "bg-emerald-500 text-white active:bg-emerald-600"
                     : "bg-amber-50 text-amber-700 active:bg-amber-100"
                 }`}
               >
-                {order.served ? "提供済み" : "未提供"}
+                <span className="text-xl">{order.served ? "✓" : "○"}</span>
+                <span>{order.served ? "提供済み" : "未提供"}</span>
               </button>
             </li>
           ))}
