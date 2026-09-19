@@ -793,7 +793,7 @@ function OrderEditorReady({ orderId, order }: { orderId: string; order: Order })
       )}
 
       <div className="fixed inset-x-0 bottom-0 border-t border-zinc-200 bg-white/95 p-4 backdrop-blur">
-        <div className="mx-auto flex max-w-2xl items-center justify-between gap-3">
+        <div className="mx-auto grid max-w-2xl grid-cols-3 items-center gap-3">
           <div>
             <p className="text-xs text-zinc-500">
               {order.table_number && `${order.table_number}番 `}
@@ -801,13 +801,23 @@ function OrderEditorReady({ orderId, order }: { orderId: string; order: Order })
             </p>
             <p className="text-2xl font-bold text-zinc-900">{formatYen(total)}</p>
           </div>
-          <button
-            onClick={openCheckout}
-            disabled={lines.length === 0}
-            className="rounded-full bg-zinc-900 px-6 py-3 text-sm font-semibold text-white active:bg-zinc-700 disabled:opacity-40"
-          >
-            会計する
-          </button>
+          <div className="flex justify-center">
+            <button
+              onClick={openCheckout}
+              disabled={lines.length === 0}
+              className="rounded-full bg-zinc-900 px-6 py-3 text-sm font-semibold text-white active:bg-zinc-700 disabled:opacity-40"
+            >
+              会計
+            </button>
+          </div>
+          <div className="flex justify-end">
+            <button
+              onClick={() => router.push("/")}
+              className="rounded-full border border-zinc-300 px-4 py-3 text-sm font-semibold text-zinc-600 active:bg-zinc-100"
+            >
+              確定
+            </button>
+          </div>
         </div>
       </div>
     </div>
