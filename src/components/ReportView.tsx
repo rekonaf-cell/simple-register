@@ -182,7 +182,16 @@ export default function ReportView() {
                       <div className="flex flex-col gap-1">
                         <div className="flex items-center justify-between">
                           <span className="text-sm font-semibold text-zinc-900">{slot}時点</span>
-                          <span className="text-xs text-zinc-400">{formatTime(report.recorded_at)}記録</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-zinc-400">{formatTime(report.recorded_at)}記録</span>
+                            <button
+                              onClick={() => handleRecordInterim(slot)}
+                              disabled={recordingSlot === slot}
+                              className="rounded-full border border-zinc-300 px-2 py-0.5 text-xs font-medium text-zinc-600 active:bg-zinc-100 disabled:opacity-40"
+                            >
+                              更新
+                            </button>
+                          </div>
                         </div>
                         <p className="text-xl font-bold text-zinc-900">{formatYen(report.total_sales)}</p>
                         <p className="text-xs text-zinc-500">
