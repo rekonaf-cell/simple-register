@@ -126,6 +126,11 @@ export async function deletePracticeOrders() {
   if (error) throw error;
 }
 
+export async function updateOrderServed(id: string, served: boolean) {
+  const { error } = await supabase.from("orders").update({ served }).eq("id", id);
+  if (error) throw error;
+}
+
 export async function updateOrderLines(id: string, lines: OrderLine[]) {
   const { error } = await supabase
     .from("orders")

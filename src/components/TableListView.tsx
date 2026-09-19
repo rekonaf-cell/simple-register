@@ -4,10 +4,15 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { usePracticeMode } from "@/lib/practiceMode";
-import { createOrder, deletePracticeOrders, useOpenOrders } from "@/lib/useOrders";
+import { createOrder, deletePracticeOrders, updateOrderServed, useOpenOrders } from "@/lib/useOrders";
+import type { Order } from "@/lib/types";
 
 function formatYen(amount: number) {
   return `¥${amount.toLocaleString("ja-JP")}`;
+}
+
+function normalizeTableNumber(value: string) {
+  return value.trim().replace(/[０-９]/g, (d) => String.fromCharCode(d.charCodeAt(0) - 0xfee0));
 }
 
 export default function TableListView() {
@@ -21,6 +26,11 @@ export default function TableListView() {
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
+    const trimmed = normalizeTableNumber(tableNumber);
+    if (trimmed && orders.some((o) => normalizeTableNumber(o.table_number) === trimmed)) {
+      window.alert(`テーブル番号「${trimmed}」は既に使用中です。`);
+      return;
+    }
     setCreating(true);
     try {
       const id = await createOrder(tableNumber, Math.max(1, parseInt(partySize, 10) || 1), practiceMode);
@@ -28,6 +38,10 @@ export default function TableListView() {
     } finally {
       setCreating(false);
     }
+  }
+
+  function toggleServed(order: Order) {
+    updateOrderServed(order.id, !order.served);
   }
 
   async function handleDeletePractice() {
@@ -101,11 +115,11 @@ export default function TableListView() {
       ) : (
         <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           {orders.map((order) => (
-            <li key={order.id}>
-              <Link
-                href={`/order/${order.id}`}
-                className="block rounded-xl bg-white p-4 shadow active:bg-zinc-50"
-              >
+            <li
+              key={order.id}
+              className={`rounded-xl shadow ${order.served ? "bg-emerald-50" : "bg-white"}`}
+            >
+              <Link href={`/order/${order.id}`} className="block p-4 active:bg-black/5">
                 <p className="text-base font-semibold text-zinc-900">
                   {order.table_number ? `${order.table_number}番` : "番号未設定"} ・ {order.party_size}名
                 </p>
@@ -113,6 +127,16 @@ export default function TableListView() {
                   {order.lines.reduce((sum, l) => sum + l.qty, 0)}点 ・ {formatYen(order.total)}
                 </p>
               </Link>
+              <button
+                onClick={() => toggleServed(order)}
+                className={`w-full rounded-b-xl px-4 py-2 text-sm font-semibold ${
+                  order.served
+                    ? "bg-emerald-500 text-white active:bg-emerald-600"
+                    : "bg-amber-50 text-amber-700 active:bg-amber-100"
+                }`}
+              >
+                {order.served ? "提供済み" : "未提供"}
+              </button>
             </li>
           ))}
         </ul>
