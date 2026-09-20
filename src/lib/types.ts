@@ -15,6 +15,14 @@ export type Category = (typeof CATEGORIES)[number];
 
 export const TOPPING_CATEGORIES: ReadonlySet<Category> = new Set(["お好み焼", "焼そば", "ネギ焼", "テイクアウト"]);
 
+export const DRINK_CATEGORIES: ReadonlySet<Category> = new Set([
+  "ソフトドリンク",
+  "ビール",
+  "ハイボール",
+  "サワー",
+  "アルコール",
+]);
+
 export const DEFAULT_CATEGORY: Category = "一品";
 
 export type MenuItem = {
@@ -120,6 +128,17 @@ export type DailyClosing = {
   totals_by_method: Partial<Record<PaymentMethod, number>>;
   counts_by_method: Partial<Record<PaymentMethod, number>>;
   tax_breakdown: TaxBreakdown;
+};
+
+export type FoodDrinkGroup = {
+  revenue: number;
+  qty: number;
+  share: number;
+};
+
+export type FoodDrinkSplit = {
+  food: FoodDrinkGroup;
+  drink: FoodDrinkGroup;
 };
 
 export type AbcRank = "A" | "B" | "C";

@@ -18,9 +18,11 @@ import {
   taxExcludedTotal,
   totalTax,
 } from "@/lib/useOrders";
+import { useMenu } from "@/lib/useMenu";
 import {
   closeDay,
   computeAbcAnalysis,
+  computeFoodDrinkSplit,
   recordInterimSnapshot,
   thisMonthJst,
   todayJst,
@@ -83,6 +85,7 @@ export default function ReportView() {
   const { closing, loading: closingLoading } = useDailyClosing(date);
   const { reports: interimReports } = useInterimReports(date);
   const { orders: monthOrders, loading: monthLoading } = useMonthlyOrders(month);
+  const { menu } = useMenu();
   const [closingBusy, setClosingBusy] = useState(false);
   const [recordingSlot, setRecordingSlot] = useState<InterimSlot | null>(null);
   const [methodFilter, setMethodFilter] = useState<PaymentMethod | "all">("all");
@@ -100,6 +103,7 @@ export default function ReportView() {
   const monthSummary = summarizeLocal(monthOrders);
   const periodOrders = viewMode === "day" ? orders : monthOrders;
   const abcRows = computeAbcAnalysis(periodOrders);
+  const foodDrinkSplit = computeFoodDrinkSplit(periodOrders, menu);
 
   async function handleCloseDay() {
     if (orders.length === 0) return;
@@ -201,6 +205,11 @@ export default function ReportView() {
                 内税合計　{formatYen(totalTax(monthSummary.taxBreakdown))}
               </div>
             </div>
+          </section>
+
+          <section>
+            <h2 className="mb-2 text-sm font-semibold text-zinc-500">フード / ドリンク（{month}）</h2>
+            <FoodDrinkSummary split={foodDrinkSplit} />
           </section>
 
           <section>
@@ -358,6 +367,11 @@ export default function ReportView() {
           </section>
 
           <section>
+            <h2 className="mb-2 text-sm font-semibold text-zinc-500">フード / ドリンク（{date}）</h2>
+            <FoodDrinkSummary split={foodDrinkSplit} />
+          </section>
+
+          <section>
             <h2 className="mb-2 text-sm font-semibold text-zinc-500">ABC分析（{date}）</h2>
             <AbcTable rows={abcRows} />
           </section>
@@ -471,6 +485,36 @@ function AbcTable({ rows }: { rows: ReturnType<typeof computeAbcAnalysis> }) {
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+function FoodDrinkSummary({ split }: { split: ReturnType<typeof computeFoodDrinkSplit> }) {
+  const hasData = split.food.revenue + split.drink.revenue > 0;
+  return (
+    <div className="rounded-xl bg-white p-4 shadow">
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <p className="text-xs text-zinc-500">フード</p>
+          <p className="text-xl font-bold text-zinc-900">{formatYen(split.food.revenue)}</p>
+          <p className="text-xs text-zinc-500">
+            {(split.food.share * 100).toFixed(1)}% ・ {split.food.qty}点
+          </p>
+        </div>
+        <div>
+          <p className="text-xs text-zinc-500">ドリンク</p>
+          <p className="text-xl font-bold text-zinc-900">{formatYen(split.drink.revenue)}</p>
+          <p className="text-xs text-zinc-500">
+            {(split.drink.share * 100).toFixed(1)}% ・ {split.drink.qty}点
+          </p>
+        </div>
+      </div>
+      {hasData && (
+        <div className="mt-3 flex h-2 overflow-hidden rounded-full bg-zinc-100">
+          <div className="bg-amber-400" style={{ width: `${split.food.share * 100}%` }} />
+          <div className="bg-sky-400" style={{ width: `${split.drink.share * 100}%` }} />
+        </div>
+      )}
     </div>
   );
 }

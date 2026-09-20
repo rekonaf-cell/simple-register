@@ -1,6 +1,15 @@
 import { addTaxBreakdowns, computeTaxBreakdown, EMPTY_TAX_BREAKDOWN, lineUnitPrice } from "./orderMath";
 import { supabase } from "./supabaseClient";
-import type { AbcRank, AbcRow, InterimReport, InterimSlot, Order } from "./types";
+import { DRINK_CATEGORIES } from "./types";
+import type {
+  AbcRank,
+  AbcRow,
+  FoodDrinkSplit,
+  InterimReport,
+  InterimSlot,
+  MenuItem,
+  Order,
+} from "./types";
 
 export function todayJst(): string {
   return jstDateOf(new Date().toISOString());
@@ -181,4 +190,32 @@ export function computeAbcAnalysis(orders: Order[]): AbcRow[] {
       rank,
     };
   });
+}
+
+export function computeFoodDrinkSplit(orders: Order[], menu: MenuItem[]): FoodDrinkSplit {
+  const categoryById = new Map(menu.map((m) => [m.id, m.category]));
+  let foodRevenue = 0;
+  let foodQty = 0;
+  let drinkRevenue = 0;
+  let drinkQty = 0;
+
+  for (const order of orders) {
+    for (const line of order.lines) {
+      const category = categoryById.get(line.menuItemId);
+      const revenue = lineUnitPrice(line) * line.qty;
+      if (category && DRINK_CATEGORIES.has(category)) {
+        drinkRevenue += revenue;
+        drinkQty += line.qty;
+      } else {
+        foodRevenue += revenue;
+        foodQty += line.qty;
+      }
+    }
+  }
+
+  const total = foodRevenue + drinkRevenue;
+  return {
+    food: { revenue: foodRevenue, qty: foodQty, share: total > 0 ? foodRevenue / total : 0 },
+    drink: { revenue: drinkRevenue, qty: drinkQty, share: total > 0 ? drinkRevenue / total : 0 },
+  };
 }

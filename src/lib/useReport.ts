@@ -12,6 +12,7 @@ import type { DailyClosing, InterimReport, Order } from "./types";
 export {
   closeDay,
   computeAbcAnalysis,
+  computeFoodDrinkSplit,
   jstDateOf,
   recomputeClosingIfExists,
   recordInterimSnapshot,
