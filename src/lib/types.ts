@@ -130,6 +130,7 @@ export type InterimReport = {
   business_date: string;
   slot: InterimSlot;
   recorded_at: string;
+  recorded_manually: boolean;
   order_count: number;
   total_guests: number;
   total_sales: number;

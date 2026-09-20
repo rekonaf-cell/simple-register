@@ -78,15 +78,29 @@ export async function recomputeClosingIfExists(businessDate: string) {
   if (error) throw error;
 }
 
-export async function recordInterimSnapshot(slot: InterimSlot) {
+export async function recordInterimSnapshot(slot: InterimSlot, options?: { manual?: boolean }) {
+  const manual = options?.manual ?? false;
   const now = new Date();
   const businessDate = jstDateOf(now.toISOString());
+
+  if (!manual) {
+    const { data: existing, error: findError } = await supabase
+      .from("interim_reports")
+      .select("recorded_manually")
+      .eq("business_date", businessDate)
+      .eq("slot", slot)
+      .maybeSingle();
+    if (findError) throw findError;
+    if (existing?.recorded_manually) return;
+  }
+
   const orders = await fetchCompletedOrders(businessDate, now.toISOString());
   const { error } = await supabase.from("interim_reports").upsert(
     {
       business_date: businessDate,
       slot,
       recorded_at: now.toISOString(),
+      recorded_manually: manual,
       ...summarizeOrders(orders),
     },
     { onConflict: "business_date,slot" }

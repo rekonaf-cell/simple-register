@@ -60,7 +60,7 @@ export default function ReportView() {
   async function handleRecordInterim(slot: InterimSlot) {
     setRecordingSlot(slot);
     try {
-      await recordInterimSnapshot(slot);
+      await recordInterimSnapshot(slot, { manual: true });
     } finally {
       setRecordingSlot(null);
     }
