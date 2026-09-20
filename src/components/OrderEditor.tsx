@@ -388,7 +388,7 @@ function OrderEditorReady({ orderId, order }: { orderId: string; order: Order })
                     onFocus={(e) => e.target.select()}
                     min={0}
                     autoFocus
-                    className="w-full rounded-lg border border-zinc-300 px-4 py-3 text-2xl font-semibold"
+                    className="w-full appearance-none rounded-lg border border-zinc-300 px-4 py-3 text-2xl font-semibold [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                   />
                 </label>
                 {activeMethod === "cash" && (
@@ -511,7 +511,7 @@ function OrderEditorReady({ orderId, order }: { orderId: string; order: Order })
                         onFocus={(e) => e.target.select()}
                         min={0}
                         autoFocus
-                        className="w-full rounded-lg border border-zinc-300 px-4 py-3 text-2xl font-semibold"
+                        className="w-full appearance-none rounded-lg border border-zinc-300 px-4 py-3 text-2xl font-semibold [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                       />
                     </label>
                     {activeMethod === "cash" && (
