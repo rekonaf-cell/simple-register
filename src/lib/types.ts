@@ -122,6 +122,18 @@ export type DailyClosing = {
   tax_breakdown: TaxBreakdown;
 };
 
+export type AbcRank = "A" | "B" | "C";
+
+export type AbcRow = {
+  menuItemId: string;
+  name: string;
+  qty: number;
+  revenue: number;
+  share: number;
+  cumulativeShare: number;
+  rank: AbcRank;
+};
+
 export const INTERIM_SLOTS = ["14:00", "17:00", "21:00"] as const;
 export type InterimSlot = (typeof INTERIM_SLOTS)[number];
 

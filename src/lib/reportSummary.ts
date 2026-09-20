@@ -1,9 +1,13 @@
-import { addTaxBreakdowns, computeTaxBreakdown, EMPTY_TAX_BREAKDOWN } from "./orderMath";
+import { addTaxBreakdowns, computeTaxBreakdown, EMPTY_TAX_BREAKDOWN, lineUnitPrice } from "./orderMath";
 import { supabase } from "./supabaseClient";
-import type { InterimReport, InterimSlot, Order } from "./types";
+import type { AbcRank, AbcRow, InterimReport, InterimSlot, Order } from "./types";
 
 export function todayJst(): string {
   return jstDateOf(new Date().toISOString());
+}
+
+export function thisMonthJst(): string {
+  return todayJst().slice(0, 7);
 }
 
 export function jstDateOf(iso: string): string {
@@ -16,18 +20,36 @@ export function jstDayBoundsUtc(businessDate: string) {
   return { startIso: start.toISOString(), endIso: end.toISOString() };
 }
 
-export async function fetchCompletedOrders(businessDate: string, upToIso?: string): Promise<Order[]> {
-  const { startIso, endIso } = jstDayBoundsUtc(businessDate);
+export function jstMonthBoundsUtc(yearMonth: string) {
+  const [year, month] = yearMonth.split("-").map(Number);
+  const start = new Date(`${yearMonth}-01T00:00:00+09:00`);
+  const nextYearMonth =
+    month === 12 ? `${year + 1}-01` : `${year}-${String(month + 1).padStart(2, "0")}`;
+  const end = new Date(`${nextYearMonth}-01T00:00:00+09:00`);
+  return { startIso: start.toISOString(), endIso: end.toISOString() };
+}
+
+async function fetchCompletedOrdersInRange(startIso: string, endIso: string): Promise<Order[]> {
   const { data, error } = await supabase
     .from("orders")
     .select("*")
     .eq("status", "completed")
     .eq("is_practice", false)
     .gte("completed_at", startIso)
-    .lt("completed_at", upToIso && upToIso < endIso ? upToIso : endIso)
+    .lt("completed_at", endIso)
     .order("completed_at", { ascending: false });
   if (error) throw error;
   return data as Order[];
+}
+
+export async function fetchCompletedOrders(businessDate: string, upToIso?: string): Promise<Order[]> {
+  const { startIso, endIso } = jstDayBoundsUtc(businessDate);
+  return fetchCompletedOrdersInRange(startIso, upToIso && upToIso < endIso ? upToIso : endIso);
+}
+
+export async function fetchCompletedOrdersForMonth(yearMonth: string): Promise<Order[]> {
+  const { startIso, endIso } = jstMonthBoundsUtc(yearMonth);
+  return fetchCompletedOrdersInRange(startIso, endIso);
 }
 
 export function summarizeOrders(orders: Order[]) {
@@ -116,4 +138,47 @@ export async function fetchInterimReports(businessDate: string): Promise<Interim
     .order("slot", { ascending: true });
   if (error) throw error;
   return data as InterimReport[];
+}
+
+const ABC_RANK_A_THRESHOLD = 0.7;
+const ABC_RANK_B_THRESHOLD = 0.9;
+
+export function computeAbcAnalysis(orders: Order[]): AbcRow[] {
+  const totals = new Map<string, { name: string; qty: number; revenue: number }>();
+  for (const order of orders) {
+    for (const line of order.lines) {
+      const key = line.menuItemId;
+      const revenue = lineUnitPrice(line) * line.qty;
+      const existing = totals.get(key);
+      if (existing) {
+        existing.qty += line.qty;
+        existing.revenue += revenue;
+      } else {
+        totals.set(key, { name: line.name, qty: line.qty, revenue });
+      }
+    }
+  }
+
+  const rows = [...totals.entries()]
+    .map(([menuItemId, v]) => ({ menuItemId, ...v }))
+    .sort((a, b) => b.revenue - a.revenue);
+  const totalRevenue = rows.reduce((sum, r) => sum + r.revenue, 0);
+
+  let cumulativeRevenue = 0;
+  return rows.map((r) => {
+    cumulativeRevenue += r.revenue;
+    const share = totalRevenue > 0 ? r.revenue / totalRevenue : 0;
+    const cumulativeShare = totalRevenue > 0 ? cumulativeRevenue / totalRevenue : 0;
+    const rank: AbcRank =
+      cumulativeShare <= ABC_RANK_A_THRESHOLD ? "A" : cumulativeShare <= ABC_RANK_B_THRESHOLD ? "B" : "C";
+    return {
+      menuItemId: r.menuItemId,
+      name: r.name,
+      qty: r.qty,
+      revenue: r.revenue,
+      share,
+      cumulativeShare,
+      rank,
+    };
+  });
 }

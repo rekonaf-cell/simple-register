@@ -6,7 +6,9 @@ import {
   INTERIM_SLOTS,
   PAYMENT_METHOD_LABELS,
   PAYMENT_METHODS,
+  type AbcRank,
   type InterimSlot,
+  type Order,
   type PaymentMethod,
 } from "@/lib/types";
 import {
@@ -18,11 +20,14 @@ import {
 } from "@/lib/useOrders";
 import {
   closeDay,
+  computeAbcAnalysis,
   recordInterimSnapshot,
+  thisMonthJst,
   todayJst,
   useCompletedOrders,
   useDailyClosing,
   useInterimReports,
+  useMonthlyOrders,
 } from "@/lib/useReport";
 
 function formatYen(amount: number) {
@@ -48,11 +53,36 @@ function creditTotals(totalsByMethod: Partial<Record<PaymentMethod, number>>) {
   return { total, quasi: total - dpay };
 }
 
+function summarizeLocal(orders: Order[]) {
+  const totalSales = orders.reduce((sum, o) => sum + o.total, 0);
+  const totalGuests = orders.reduce((sum, o) => sum + o.party_size, 0);
+  const totalsByMethod: Partial<Record<PaymentMethod, number>> = {};
+  const countsByMethod: Partial<Record<PaymentMethod, number>> = {};
+  let taxBreakdown = EMPTY_TAX_BREAKDOWN;
+  for (const o of orders) {
+    for (const p of o.payments) {
+      totalsByMethod[p.method] = (totalsByMethod[p.method] ?? 0) + p.amount;
+      countsByMethod[p.method] = (countsByMethod[p.method] ?? 0) + 1;
+    }
+    taxBreakdown = addTaxBreakdowns(taxBreakdown, computeTaxBreakdown(o.lines));
+  }
+  return { totalSales, totalGuests, totalsByMethod, countsByMethod, taxBreakdown };
+}
+
+function abcBadgeClass(rank: AbcRank) {
+  if (rank === "A") return "bg-emerald-100 text-emerald-700";
+  if (rank === "B") return "bg-amber-100 text-amber-700";
+  return "bg-zinc-100 text-zinc-500";
+}
+
 export default function ReportView() {
+  const [viewMode, setViewMode] = useState<"day" | "month">("day");
   const [date, setDate] = useState(todayJst());
+  const [month, setMonth] = useState(thisMonthJst());
   const { orders, loading: ordersLoading } = useCompletedOrders(date);
   const { closing, loading: closingLoading } = useDailyClosing(date);
   const { reports: interimReports } = useInterimReports(date);
+  const { orders: monthOrders, loading: monthLoading } = useMonthlyOrders(month);
   const [closingBusy, setClosingBusy] = useState(false);
   const [recordingSlot, setRecordingSlot] = useState<InterimSlot | null>(null);
   const [methodFilter, setMethodFilter] = useState<PaymentMethod | "all">("all");
@@ -66,18 +96,10 @@ export default function ReportView() {
     }
   }
 
-  const totalSales = orders.reduce((sum, o) => sum + o.total, 0);
-  const totalGuests = orders.reduce((sum, o) => sum + o.party_size, 0);
-  const totalsByMethod: Partial<Record<PaymentMethod, number>> = {};
-  const countsByMethod: Partial<Record<PaymentMethod, number>> = {};
-  let taxBreakdown = EMPTY_TAX_BREAKDOWN;
-  for (const o of orders) {
-    for (const p of o.payments) {
-      totalsByMethod[p.method] = (totalsByMethod[p.method] ?? 0) + p.amount;
-      countsByMethod[p.method] = (countsByMethod[p.method] ?? 0) + 1;
-    }
-    taxBreakdown = addTaxBreakdowns(taxBreakdown, computeTaxBreakdown(o.lines));
-  }
+  const { totalSales, totalGuests, totalsByMethod, countsByMethod, taxBreakdown } = summarizeLocal(orders);
+  const monthSummary = summarizeLocal(monthOrders);
+  const periodOrders = viewMode === "day" ? orders : monthOrders;
+  const abcRows = computeAbcAnalysis(periodOrders);
 
   async function handleCloseDay() {
     if (orders.length === 0) return;
@@ -94,22 +116,98 @@ export default function ReportView() {
   const filteredOrders =
     methodFilter === "all" ? orders : orders.filter((o) => o.payments.some((p) => p.method === methodFilter));
 
-  const loading = ordersLoading || closingLoading;
+  const loading = viewMode === "day" ? ordersLoading || closingLoading : monthLoading;
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-4">
-      <label className="flex items-center gap-2">
-        <span className="text-sm font-semibold text-zinc-500">対象日</span>
-        <input
-          type="date"
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-          className="rounded-lg border border-zinc-300 px-3 py-2 text-sm"
-        />
-      </label>
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex rounded-lg bg-zinc-100 p-1 text-sm">
+          <button
+            onClick={() => setViewMode("day")}
+            className={`rounded-md px-3 py-1.5 font-semibold ${
+              viewMode === "day" ? "bg-white text-zinc-900 shadow" : "text-zinc-500"
+            }`}
+          >
+            日次
+          </button>
+          <button
+            onClick={() => setViewMode("month")}
+            className={`rounded-md px-3 py-1.5 font-semibold ${
+              viewMode === "month" ? "bg-white text-zinc-900 shadow" : "text-zinc-500"
+            }`}
+          >
+            月次
+          </button>
+        </div>
+        {viewMode === "day" ? (
+          <input
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            className="rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+          />
+        ) : (
+          <input
+            type="month"
+            value={month}
+            onChange={(e) => setMonth(e.target.value)}
+            className="rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+          />
+        )}
+      </div>
 
       {loading ? (
         <p className="text-sm text-zinc-500">読み込み中...</p>
+      ) : viewMode === "month" ? (
+        <>
+          <section className="rounded-xl bg-white p-4 shadow">
+            <div className="flex flex-col gap-2">
+              <p className="text-sm text-zinc-500">月次累計（{month}）</p>
+              <p className="text-3xl font-bold text-zinc-900">
+                {formatYen(taxExcludedTotal(monthSummary.taxBreakdown))}
+              </p>
+              <p className="text-xs text-zinc-500">税込 {formatYen(monthSummary.totalSales)}</p>
+              <p className="text-xs text-zinc-500">
+                {monthOrders.length}組 ・ {monthSummary.totalGuests}名
+              </p>
+              <div className="mt-2 grid grid-cols-3 gap-2 text-sm">
+                {(Object.entries(monthSummary.totalsByMethod) as [PaymentMethod, number][])
+                  .filter(([, amount]) => amount > 0)
+                  .map(([method, amount]) => (
+                    <div key={method}>
+                      <p className="text-xs text-zinc-500">
+                        {PAYMENT_METHOD_LABELS[method]}（{monthSummary.countsByMethod[method] ?? 0}件）
+                      </p>
+                      <p className="font-semibold">{formatYen(amount)}</p>
+                    </div>
+                  ))}
+              </div>
+              <div className="mt-1 border-t border-zinc-100 pt-2 grid grid-cols-2 gap-2 text-sm">
+                <div>
+                  <p className="text-xs text-zinc-500">総クレジット</p>
+                  <p className="font-semibold">{formatYen(creditTotals(monthSummary.totalsByMethod).total)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-zinc-500">準クレジット</p>
+                  <p className="font-semibold">{formatYen(creditTotals(monthSummary.totalsByMethod).quasi)}</p>
+                </div>
+              </div>
+              <div className="mt-1 border-t border-zinc-100 pt-2 text-xs text-zinc-500">
+                内消費税　10%対象 {formatYen(monthSummary.taxBreakdown.taxable10)}（税
+                {formatYen(monthSummary.taxBreakdown.tax10)}） ・ 8%対象{" "}
+                {formatYen(monthSummary.taxBreakdown.taxable8)}（税{formatYen(monthSummary.taxBreakdown.tax8)}）
+              </div>
+              <div className="text-xs text-zinc-500">
+                内税合計　{formatYen(totalTax(monthSummary.taxBreakdown))}
+              </div>
+            </div>
+          </section>
+
+          <section>
+            <h2 className="mb-2 text-sm font-semibold text-zinc-500">ABC分析（{month}）</h2>
+            <AbcTable rows={abcRows} />
+          </section>
+        </>
       ) : (
         <>
           <section className="rounded-xl bg-white p-4 shadow">
@@ -260,6 +358,11 @@ export default function ReportView() {
           </section>
 
           <section>
+            <h2 className="mb-2 text-sm font-semibold text-zinc-500">ABC分析（{date}）</h2>
+            <AbcTable rows={abcRows} />
+          </section>
+
+          <section>
             <h2 className="mb-2 text-sm font-semibold text-zinc-500">会計履歴</h2>
             {orders.length > 0 && (
               <div className="mb-2 flex gap-2 overflow-x-auto pb-1">
@@ -322,6 +425,52 @@ export default function ReportView() {
           </section>
         </>
       )}
+    </div>
+  );
+}
+
+function AbcTable({ rows }: { rows: ReturnType<typeof computeAbcAnalysis> }) {
+  if (rows.length === 0) {
+    return (
+      <p className="rounded-lg border border-dashed border-zinc-300 p-4 text-center text-sm text-zinc-500">
+        この期間の会計データがありません。
+      </p>
+    );
+  }
+  return (
+    <div className="overflow-x-auto rounded-xl bg-white shadow">
+      <table className="w-full min-w-[480px] text-sm">
+        <thead>
+          <tr className="border-b border-zinc-200 text-left text-xs text-zinc-500">
+            <th className="px-3 py-2 font-medium">順位</th>
+            <th className="px-3 py-2 font-medium">商品</th>
+            <th className="px-3 py-2 text-right font-medium">数量</th>
+            <th className="px-3 py-2 text-right font-medium">売上</th>
+            <th className="px-3 py-2 text-right font-medium">構成比</th>
+            <th className="px-3 py-2 text-right font-medium">累計</th>
+            <th className="px-3 py-2 text-center font-medium">ランク</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-zinc-100">
+          {rows.map((row, i) => (
+            <tr key={row.menuItemId}>
+              <td className="px-3 py-2 text-zinc-400">{i + 1}</td>
+              <td className="px-3 py-2 font-medium text-zinc-900">{row.name}</td>
+              <td className="px-3 py-2 text-right text-zinc-600">{row.qty}</td>
+              <td className="px-3 py-2 text-right font-semibold text-zinc-900">{formatYen(row.revenue)}</td>
+              <td className="px-3 py-2 text-right text-zinc-500">{(row.share * 100).toFixed(1)}%</td>
+              <td className="px-3 py-2 text-right text-zinc-500">{(row.cumulativeShare * 100).toFixed(1)}%</td>
+              <td className="px-3 py-2 text-center">
+                <span
+                  className={`inline-block w-6 rounded-full px-2 py-0.5 text-xs font-bold ${abcBadgeClass(row.rank)}`}
+                >
+                  {row.rank}
+                </span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

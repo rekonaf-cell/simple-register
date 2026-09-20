@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import {
   fetchCompletedOrders,
+  fetchCompletedOrdersForMonth,
   fetchInterimReports,
 } from "./reportSummary";
 import { supabase } from "./supabaseClient";
@@ -10,9 +11,11 @@ import type { DailyClosing, InterimReport, Order } from "./types";
 
 export {
   closeDay,
+  computeAbcAnalysis,
   jstDateOf,
   recomputeClosingIfExists,
   recordInterimSnapshot,
+  thisMonthJst,
   todayJst,
 } from "./reportSummary";
 
@@ -44,6 +47,38 @@ export function useCompletedOrders(businessDate: string) {
       supabase.removeChannel(channel);
     };
   }, [businessDate]);
+
+  return { orders, loading };
+}
+
+export function useMonthlyOrders(yearMonth: string) {
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+
+    fetchCompletedOrdersForMonth(yearMonth).then((data) => {
+      if (active) {
+        setOrders(data);
+        setLoading(false);
+      }
+    });
+
+    const channel = supabase
+      .channel(`monthly_orders_${yearMonth}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => {
+        fetchCompletedOrdersForMonth(yearMonth).then((data) => {
+          if (active) setOrders(data);
+        });
+      })
+      .subscribe();
+
+    return () => {
+      active = false;
+      supabase.removeChannel(channel);
+    };
+  }, [yearMonth]);
 
   return { orders, loading };
 }
