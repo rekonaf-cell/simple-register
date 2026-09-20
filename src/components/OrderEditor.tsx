@@ -23,6 +23,9 @@ import {
   computeTaxBreakdown,
   deleteOrder,
   lineUnitPrice,
+  orderTotal,
+  sameToppingSet,
+  splitCheckout,
   taxExcludedTotal,
   totalTax,
   updateOrderLines,
@@ -42,12 +45,6 @@ function speakOokini() {
   const utterance = new SpeechSynthesisUtterance("おおきに");
   utterance.lang = "ja-JP";
   window.speechSynthesis.speak(utterance);
-}
-
-function sameToppingSet(a: OrderLineTopping[], b: OrderLineTopping[]) {
-  if (a.length !== b.length) return false;
-  const aIds = new Set(a.map((t) => t.id));
-  return b.every((t) => aIds.has(t.id));
 }
 
 export default function OrderEditor({ orderId }: { orderId: string }) {
@@ -119,6 +116,9 @@ function OrderEditorReady({ orderId, order }: { orderId: string; order: Order })
   const [activeMethod, setActiveMethod] = useState<PaymentMethod | null>(null);
   const [amountInput, setAmountInput] = useState("");
   const [completing, setCompleting] = useState(false);
+  const [selectedQty, setSelectedQty] = useState<Record<string, number>>(() =>
+    Object.fromEntries(order.lines.map((l) => [l.id, l.qty]))
+  );
   const [pickerItem, setPickerItem] = useState<MenuItem | null>(null);
   const [editingLine, setEditingLine] = useState<OrderLine | null>(null);
   const [selectedToppingIds, setSelectedToppingIds] = useState<Set<string>>(new Set());
@@ -127,7 +127,29 @@ function OrderEditorReady({ orderId, order }: { orderId: string; order: Order })
   const lines = order.lines;
   const total = order.total;
   const totalCount = lines.reduce((sum, l) => sum + l.qty, 0);
-  const tax = computeTaxBreakdown(lines);
+
+  const selectedLines = lines
+    .map((l) => {
+      const qty = selectedQty[l.id] ?? l.qty;
+      return qty > 0 ? { ...l, qty } : null;
+    })
+    .filter((l): l is OrderLine => l !== null);
+  const remainingLines = lines
+    .map((l) => {
+      const qty = l.qty - (selectedQty[l.id] ?? l.qty);
+      return qty > 0 ? { ...l, qty } : null;
+    })
+    .filter((l): l is OrderLine => l !== null);
+  const selectedTotal = orderTotal(selectedLines);
+  const selectedCount = selectedLines.reduce((sum, l) => sum + l.qty, 0);
+  const isPartialCheckout = !isCompleted && remainingLines.length > 0;
+
+  const checkoutTotal = isCompleted ? total : selectedTotal;
+  const checkoutTax = isCompleted ? computeTaxBreakdown(lines) : computeTaxBreakdown(selectedLines);
+
+  function setLineSelectedQty(lineId: string, qty: number, max: number) {
+    setSelectedQty((prev) => ({ ...prev, [lineId]: Math.min(Math.max(qty, 0), max) }));
+  }
 
   function addItemToOrder(item: MenuItem, chosenToppings: OrderLineTopping[]) {
     const existing = lines.find(
@@ -219,7 +241,7 @@ function OrderEditorReady({ orderId, order }: { orderId: string; order: Order })
   }
 
   const paidSoFar = payments.reduce((sum, p) => sum + p.amount, 0);
-  const remaining = total - paidSoFar;
+  const remaining = checkoutTotal - paidSoFar;
 
   const enteredAmount = Number(amountInput);
   const legReceived = activeMethod === "cash" ? enteredAmount : null;
@@ -232,10 +254,11 @@ function OrderEditorReady({ orderId, order }: { orderId: string; order: Order })
       ? Number.isFinite(enteredAmount) && enteredAmount > 0
       : Number.isFinite(enteredAmount) && enteredAmount > 0 && enteredAmount <= remaining);
 
-  const canConfirm = remaining === 0 && payments.length > 0;
+  const canConfirm = remaining === 0 && payments.length > 0 && selectedTotal > 0;
 
   function openCheckout() {
     if (lines.length === 0) return;
+    setSelectedQty(Object.fromEntries(lines.map((l) => [l.id, l.qty])));
     setPayments([]);
     setActiveMethod(null);
     setAmountInput("");
@@ -266,9 +289,23 @@ function OrderEditorReady({ orderId, order }: { orderId: string; order: Order })
     if (!canConfirm) return;
     setCompleting(true);
     try {
-      await completeOrder(orderId, payments);
-      speakOokini();
-      router.push("/");
+      if (isPartialCheckout) {
+        await splitCheckout({
+          orderId,
+          tableNumber: order.table_number,
+          isPractice: order.is_practice,
+          selectedLines,
+          remainingLines,
+          payments,
+        });
+        speakOokini();
+        setCheckoutOpen(false);
+        setPayments([]);
+      } else {
+        await completeOrder(orderId, payments);
+        speakOokini();
+        router.push("/");
+      }
     } finally {
       setCompleting(false);
     }
@@ -342,12 +379,16 @@ function OrderEditorReady({ orderId, order }: { orderId: string; order: Order })
             <span className="text-xl font-bold text-zinc-900">{formatYen(total)}</span>
           </div>
           <div className="text-right text-xs text-zinc-400">
-            {tax.taxable10 > 0 && <span>10%対象 {formatYen(tax.taxable10)}（内税{formatYen(tax.tax10)}）</span>}
-            {tax.taxable10 > 0 && tax.taxable8 > 0 && <span> ・ </span>}
-            {tax.taxable8 > 0 && <span>8%対象 {formatYen(tax.taxable8)}（内税{formatYen(tax.tax8)}）</span>}
+            {checkoutTax.taxable10 > 0 && (
+              <span>10%対象 {formatYen(checkoutTax.taxable10)}（内税{formatYen(checkoutTax.tax10)}）</span>
+            )}
+            {checkoutTax.taxable10 > 0 && checkoutTax.taxable8 > 0 && <span> ・ </span>}
+            {checkoutTax.taxable8 > 0 && (
+              <span>8%対象 {formatYen(checkoutTax.taxable8)}（内税{formatYen(checkoutTax.tax8)}）</span>
+            )}
           </div>
           <div className="text-right text-xs text-zinc-400">
-            税抜合計 {formatYen(taxExcludedTotal(tax))} ・ 内税合計 {formatYen(totalTax(tax))}
+            税抜合計 {formatYen(taxExcludedTotal(checkoutTax))} ・ 内税合計 {formatYen(totalTax(checkoutTax))}
           </div>
 
           <PaymentLegs payments={payments} onRemove={removeLeg} />
@@ -441,37 +482,73 @@ function OrderEditorReady({ orderId, order }: { orderId: string; order: Order })
           <p className="text-sm font-semibold text-zinc-900">
             {order.table_number ? `${order.table_number}番` : "番号未設定"} ・ {order.party_size}名
           </p>
+          <p className="mt-1 text-xs text-zinc-500">
+            会計する商品を選んでください（一部だけ選ぶと個別会計になります）
+          </p>
           <ul className="mt-3 divide-y divide-zinc-200">
-            {lines.map((line) => (
-              <li key={line.id} className="py-2">
-                <p className="text-sm font-medium text-zinc-900">
-                  {line.name}
-                  {line.toppings.length > 0 && (
-                    <span className="text-zinc-500">
-                      （{line.toppings.map((t) => t.name).join("・")}）
-                    </span>
-                  )}
-                </p>
-                <p className="text-xs text-zinc-500">
-                  {formatYen(lineUnitPrice(line))} × {line.qty} = {formatYen(lineUnitPrice(line) * line.qty)}
-                </p>
-              </li>
-            ))}
+            {lines.map((line) => {
+              const qty = selectedQty[line.id] ?? line.qty;
+              return (
+                <li key={line.id} className="flex items-center gap-2 py-2">
+                  <div className="min-w-0 flex-1">
+                    <p className={`text-sm font-medium ${qty > 0 ? "text-zinc-900" : "text-zinc-400"}`}>
+                      {line.name}
+                      {line.toppings.length > 0 && (
+                        <span className="text-zinc-500">
+                          （{line.toppings.map((t) => t.name).join("・")}）
+                        </span>
+                      )}
+                    </p>
+                    <p className="text-xs text-zinc-500">
+                      {formatYen(lineUnitPrice(line))} × 全{line.qty}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setLineSelectedQty(line.id, qty - 1, line.qty)}
+                    disabled={qty <= 0}
+                    className="h-8 w-8 rounded-full bg-zinc-100 text-lg font-bold text-zinc-700 active:bg-zinc-200 disabled:opacity-30"
+                    aria-label="会計数を減らす"
+                  >
+                    −
+                  </button>
+                  <span className="w-10 text-center text-sm font-semibold">
+                    {qty}/{line.qty}
+                  </span>
+                  <button
+                    onClick={() => setLineSelectedQty(line.id, qty + 1, line.qty)}
+                    disabled={qty >= line.qty}
+                    className="h-8 w-8 rounded-full bg-zinc-100 text-lg font-bold text-zinc-700 active:bg-zinc-200 disabled:opacity-30"
+                    aria-label="会計数を増やす"
+                  >
+                    ＋
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         </section>
 
         <section className="flex flex-col gap-3 rounded-xl bg-white p-4 shadow">
+          {isPartialCheckout && (
+            <div className="rounded-lg bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700">
+              選んだ{selectedCount}点だけ会計します。残り{remainingLines.reduce((s, l) => s + l.qty, 0)}点はこのテーブルに残ります。
+            </div>
+          )}
           <div className="flex items-center justify-between">
             <span className="text-sm text-zinc-500">お会計合計</span>
-            <span className="text-xl font-bold text-zinc-900">{formatYen(total)}</span>
+            <span className="text-xl font-bold text-zinc-900">{formatYen(selectedTotal)}</span>
           </div>
           <div className="text-right text-xs text-zinc-400">
-            {tax.taxable10 > 0 && <span>10%対象 {formatYen(tax.taxable10)}（内税{formatYen(tax.tax10)}）</span>}
-            {tax.taxable10 > 0 && tax.taxable8 > 0 && <span> ・ </span>}
-            {tax.taxable8 > 0 && <span>8%対象 {formatYen(tax.taxable8)}（内税{formatYen(tax.tax8)}）</span>}
+            {checkoutTax.taxable10 > 0 && (
+              <span>10%対象 {formatYen(checkoutTax.taxable10)}（内税{formatYen(checkoutTax.tax10)}）</span>
+            )}
+            {checkoutTax.taxable10 > 0 && checkoutTax.taxable8 > 0 && <span> ・ </span>}
+            {checkoutTax.taxable8 > 0 && (
+              <span>8%対象 {formatYen(checkoutTax.taxable8)}（内税{formatYen(checkoutTax.tax8)}）</span>
+            )}
           </div>
           <div className="text-right text-xs text-zinc-400">
-            税抜合計 {formatYen(taxExcludedTotal(tax))} ・ 内税合計 {formatYen(totalTax(tax))}
+            税抜合計 {formatYen(taxExcludedTotal(checkoutTax))} ・ 内税合計 {formatYen(totalTax(checkoutTax))}
           </div>
 
           <PaymentLegs payments={payments} onRemove={removeLeg} />
@@ -549,7 +626,7 @@ function OrderEditorReady({ orderId, order }: { orderId: string; order: Order })
               disabled={!canConfirm || completing}
               className="flex-1 rounded-full bg-zinc-900 px-4 py-3 text-sm font-semibold text-white active:bg-zinc-700 disabled:opacity-40"
             >
-              会計を確定
+              {isPartialCheckout ? "選んだ商品だけ会計する" : "会計を確定"}
             </button>
           </div>
         </section>

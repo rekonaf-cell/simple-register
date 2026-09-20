@@ -1,4 +1,4 @@
-import type { OrderLine, TaxBreakdown } from "./types";
+import type { OrderLine, OrderLineTopping, TaxBreakdown } from "./types";
 
 export function lineUnitPrice(line: OrderLine) {
   return line.price + line.toppings.reduce((sum, t) => sum + t.price, 0);
@@ -6,6 +6,29 @@ export function lineUnitPrice(line: OrderLine) {
 
 export function orderTotal(lines: OrderLine[]) {
   return lines.reduce((sum, line) => sum + lineUnitPrice(line) * line.qty, 0);
+}
+
+export function sameToppingSet(a: OrderLineTopping[], b: OrderLineTopping[]) {
+  if (a.length !== b.length) return false;
+  const aIds = new Set(a.map((t) => t.id));
+  return b.every((t) => aIds.has(t.id));
+}
+
+export function mergeOrderLines(lineGroups: OrderLine[][]): OrderLine[] {
+  const merged: OrderLine[] = [];
+  for (const lines of lineGroups) {
+    for (const line of lines) {
+      const existing = merged.find(
+        (m) => m.menuItemId === line.menuItemId && sameToppingSet(m.toppings, line.toppings)
+      );
+      if (existing) {
+        existing.qty += line.qty;
+      } else {
+        merged.push({ ...line, id: crypto.randomUUID() });
+      }
+    }
+  }
+  return merged;
 }
 
 export function computeTaxBreakdown(lines: OrderLine[]): TaxBreakdown {
