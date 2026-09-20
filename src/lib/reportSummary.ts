@@ -1,4 +1,10 @@
-import { addTaxBreakdowns, computeTaxBreakdown, EMPTY_TAX_BREAKDOWN, lineUnitPrice } from "./orderMath";
+import {
+  addTaxBreakdowns,
+  computeTaxBreakdown,
+  EMPTY_TAX_BREAKDOWN,
+  lineUnitPrice,
+  taxExcludedTotal,
+} from "./orderMath";
 import { supabase } from "./supabaseClient";
 import { DRINK_CATEGORIES } from "./types";
 import type {
@@ -153,23 +159,31 @@ const ABC_RANK_A_THRESHOLD = 0.7;
 const ABC_RANK_B_THRESHOLD = 0.9;
 
 export function computeAbcAnalysis(orders: Order[]): AbcRow[] {
-  const totals = new Map<string, { name: string; qty: number; revenue: number }>();
+  const totals = new Map<string, { name: string; qty: number; revenue: number; tax: ReturnType<typeof computeTaxBreakdown> }>();
   for (const order of orders) {
     for (const line of order.lines) {
       const key = line.menuItemId;
       const revenue = lineUnitPrice(line) * line.qty;
+      const lineTax = computeTaxBreakdown([line]);
       const existing = totals.get(key);
       if (existing) {
         existing.qty += line.qty;
         existing.revenue += revenue;
+        existing.tax = addTaxBreakdowns(existing.tax, lineTax);
       } else {
-        totals.set(key, { name: line.name, qty: line.qty, revenue });
+        totals.set(key, { name: line.name, qty: line.qty, revenue, tax: lineTax });
       }
     }
   }
 
   const rows = [...totals.entries()]
-    .map(([menuItemId, v]) => ({ menuItemId, ...v }))
+    .map(([menuItemId, v]) => ({
+      menuItemId,
+      name: v.name,
+      qty: v.qty,
+      revenue: v.revenue,
+      revenueExTax: taxExcludedTotal(v.tax),
+    }))
     .sort((a, b) => b.revenue - a.revenue);
   const totalRevenue = rows.reduce((sum, r) => sum + r.revenue, 0);
 
@@ -185,6 +199,7 @@ export function computeAbcAnalysis(orders: Order[]): AbcRow[] {
       name: r.name,
       qty: r.qty,
       revenue: r.revenue,
+      revenueExTax: r.revenueExTax,
       share,
       cumulativeShare,
       rank,
@@ -196,26 +211,41 @@ export function computeFoodDrinkSplit(orders: Order[], menu: MenuItem[]): FoodDr
   const categoryById = new Map(menu.map((m) => [m.id, m.category]));
   let foodRevenue = 0;
   let foodQty = 0;
+  let foodTax = EMPTY_TAX_BREAKDOWN;
   let drinkRevenue = 0;
   let drinkQty = 0;
+  let drinkTax = EMPTY_TAX_BREAKDOWN;
 
   for (const order of orders) {
     for (const line of order.lines) {
       const category = categoryById.get(line.menuItemId);
       const revenue = lineUnitPrice(line) * line.qty;
+      const lineTax = computeTaxBreakdown([line]);
       if (category && DRINK_CATEGORIES.has(category)) {
         drinkRevenue += revenue;
         drinkQty += line.qty;
+        drinkTax = addTaxBreakdowns(drinkTax, lineTax);
       } else {
         foodRevenue += revenue;
         foodQty += line.qty;
+        foodTax = addTaxBreakdowns(foodTax, lineTax);
       }
     }
   }
 
   const total = foodRevenue + drinkRevenue;
   return {
-    food: { revenue: foodRevenue, qty: foodQty, share: total > 0 ? foodRevenue / total : 0 },
-    drink: { revenue: drinkRevenue, qty: drinkQty, share: total > 0 ? drinkRevenue / total : 0 },
+    food: {
+      revenue: foodRevenue,
+      revenueExTax: taxExcludedTotal(foodTax),
+      qty: foodQty,
+      share: total > 0 ? foodRevenue / total : 0,
+    },
+    drink: {
+      revenue: drinkRevenue,
+      revenueExTax: taxExcludedTotal(drinkTax),
+      qty: drinkQty,
+      share: total > 0 ? drinkRevenue / total : 0,
+    },
   };
 }

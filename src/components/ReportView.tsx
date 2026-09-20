@@ -453,13 +453,14 @@ function AbcTable({ rows }: { rows: ReturnType<typeof computeAbcAnalysis> }) {
   }
   return (
     <div className="overflow-x-auto rounded-xl bg-white shadow">
-      <table className="w-full min-w-[480px] text-sm">
+      <table className="w-full min-w-[560px] text-sm">
         <thead>
           <tr className="border-b border-zinc-200 text-left text-xs text-zinc-500">
             <th className="px-3 py-2 font-medium">順位</th>
             <th className="px-3 py-2 font-medium">商品</th>
             <th className="px-3 py-2 text-right font-medium">数量</th>
             <th className="px-3 py-2 text-right font-medium">売上</th>
+            <th className="px-3 py-2 text-right font-medium">税抜</th>
             <th className="px-3 py-2 text-right font-medium">構成比</th>
             <th className="px-3 py-2 text-right font-medium">累計</th>
             <th className="px-3 py-2 text-center font-medium">ランク</th>
@@ -472,6 +473,7 @@ function AbcTable({ rows }: { rows: ReturnType<typeof computeAbcAnalysis> }) {
               <td className="px-3 py-2 font-medium text-zinc-900">{row.name}</td>
               <td className="px-3 py-2 text-right text-zinc-600">{row.qty}</td>
               <td className="px-3 py-2 text-right font-semibold text-zinc-900">{formatYen(row.revenue)}</td>
+              <td className="px-3 py-2 text-right text-zinc-500">{formatYen(row.revenueExTax)}</td>
               <td className="px-3 py-2 text-right text-zinc-500">{(row.share * 100).toFixed(1)}%</td>
               <td className="px-3 py-2 text-right text-zinc-500">{(row.cumulativeShare * 100).toFixed(1)}%</td>
               <td className="px-3 py-2 text-center">
@@ -497,6 +499,7 @@ function FoodDrinkSummary({ split }: { split: ReturnType<typeof computeFoodDrink
         <div>
           <p className="text-xs text-zinc-500">フード</p>
           <p className="text-xl font-bold text-zinc-900">{formatYen(split.food.revenue)}</p>
+          <p className="text-xs text-zinc-500">税抜 {formatYen(split.food.revenueExTax)}</p>
           <p className="text-xs text-zinc-500">
             {(split.food.share * 100).toFixed(1)}% ・ {split.food.qty}点
           </p>
@@ -504,6 +507,7 @@ function FoodDrinkSummary({ split }: { split: ReturnType<typeof computeFoodDrink
         <div>
           <p className="text-xs text-zinc-500">ドリンク</p>
           <p className="text-xl font-bold text-zinc-900">{formatYen(split.drink.revenue)}</p>
+          <p className="text-xs text-zinc-500">税抜 {formatYen(split.drink.revenueExTax)}</p>
           <p className="text-xs text-zinc-500">
             {(split.drink.share * 100).toFixed(1)}% ・ {split.drink.qty}点
           </p>

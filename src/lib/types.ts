@@ -132,6 +132,7 @@ export type DailyClosing = {
 
 export type FoodDrinkGroup = {
   revenue: number;
+  revenueExTax: number;
   qty: number;
   share: number;
 };
@@ -148,6 +149,7 @@ export type AbcRow = {
   name: string;
   qty: number;
   revenue: number;
+  revenueExTax: number;
   share: number;
   cumulativeShare: number;
   rank: AbcRank;
