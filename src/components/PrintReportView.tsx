@@ -69,7 +69,6 @@ export default function PrintReportView() {
                 {SHOP_NAME}　／　対象日：{formatDateJp(date)}
               </div>
             </div>
-            <div className={styles.stamp}>確認印</div>
           </div>
 
           <div className={styles.grid}>
@@ -150,24 +149,6 @@ export default function PrintReportView() {
           <div className={styles.notebox}>
             <div className={styles.noteboxLabel}>備考</div>
             <div className={styles.noteboxLines} />
-          </div>
-
-          <div className={styles.foot}>
-            <div className={styles.sign}>
-              <div>
-                店長確認
-                <div className={styles.signBox} />
-              </div>
-              <div>
-                経理確認
-                <div className={styles.signBox} />
-              </div>
-            </div>
-            <div>
-              <span suppressHydrationWarning>
-                発行：簡易レジ　{new Date().toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" })}
-              </span>
-            </div>
           </div>
         </div>
       </div>

@@ -23,7 +23,7 @@ export function PracticeModeBanner() {
   if (!practiceMode) return null;
 
   return (
-    <div className="bg-amber-500 px-4 py-1.5 text-center text-xs font-semibold text-white">
+    <div className="bg-amber-500 px-4 py-1.5 text-center text-xs font-semibold text-white print:hidden">
       練習モード：この端末で作る注文は売上に反映されません
     </div>
   );
