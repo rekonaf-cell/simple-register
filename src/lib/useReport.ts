@@ -13,9 +13,11 @@ export {
   closeDay,
   computeAbcAnalysis,
   computeFoodDrinkSplit,
+  creditTotals,
   jstDateOf,
   recomputeClosingIfExists,
   recordInterimSnapshot,
+  summarizeOrders,
   thisMonthJst,
   todayJst,
 } from "./reportSummary";

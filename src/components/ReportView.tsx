@@ -23,6 +23,7 @@ import {
   closeDay,
   computeAbcAnalysis,
   computeFoodDrinkSplit,
+  creditTotals,
   recordInterimSnapshot,
   thisMonthJst,
   todayJst,
@@ -42,17 +43,6 @@ function formatTime(iso: string) {
     minute: "2-digit",
     timeZone: "Asia/Tokyo",
   });
-}
-
-function creditTotals(totalsByMethod: Partial<Record<PaymentMethod, number>>) {
-  const dpay = totalsByMethod.dpay ?? 0;
-  const total =
-    (totalsByMethod.credit ?? 0) +
-    (totalsByMethod.qr ?? 0) +
-    dpay +
-    (totalsByMethod.other ?? 0) +
-    (totalsByMethod.pitapa ?? 0);
-  return { total, quasi: total - dpay };
 }
 
 function summarizeLocal(orders: Order[]) {
@@ -308,6 +298,14 @@ export default function ReportView() {
               </div>
             )}
           </section>
+
+          <Link
+            href={`/report/print?date=${date}`}
+            target="_blank"
+            className="rounded-full border border-zinc-300 bg-white px-4 py-3 text-center text-sm font-semibold text-zinc-600 shadow active:bg-zinc-100"
+          >
+            日計表を印刷 / PDF保存
+          </Link>
 
           <section>
             <h2 className="mb-2 text-sm font-semibold text-zinc-500">中間計</h2>

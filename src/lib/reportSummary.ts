@@ -15,6 +15,7 @@ import type {
   InterimSlot,
   MenuItem,
   Order,
+  PaymentMethod,
 } from "./types";
 
 export function todayJst(): string {
@@ -143,6 +144,17 @@ export async function recordInterimSnapshot(slot: InterimSlot, options?: { manua
     { onConflict: "business_date,slot" }
   );
   if (error) throw error;
+}
+
+export function creditTotals(totalsByMethod: Partial<Record<PaymentMethod, number>>) {
+  const dpay = totalsByMethod.dpay ?? 0;
+  const total =
+    (totalsByMethod.credit ?? 0) +
+    (totalsByMethod.qr ?? 0) +
+    dpay +
+    (totalsByMethod.other ?? 0) +
+    (totalsByMethod.pitapa ?? 0);
+  return { total, quasi: total - dpay };
 }
 
 export async function fetchInterimReports(businessDate: string): Promise<InterimReport[]> {
