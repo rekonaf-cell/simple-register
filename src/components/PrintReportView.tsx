@@ -6,9 +6,11 @@ import { taxExcludedTotal, totalTax } from "@/lib/useOrders";
 import {
   creditTotals,
   summarizeOrders,
+  thisMonthJst,
   todayJst,
   useCompletedOrders,
   useDailyClosing,
+  useMonthlyOrders,
 } from "@/lib/useReport";
 import { SHOP_NAME } from "@/lib/shopInfo";
 import styles from "@/app/report/print/print.module.css";
@@ -23,27 +25,42 @@ function formatDateJp(businessDate: string) {
   return `${y}年${m}月${d}日（${weekday}）`;
 }
 
+function formatMonthJp(yearMonth: string) {
+  const [y, m] = yearMonth.split("-").map(Number);
+  return `${y}年${m}月`;
+}
+
 export default function PrintReportView() {
   const searchParams = useSearchParams();
+  const monthParam = searchParams.get("month");
+  const isMonthly = monthParam !== null;
   const date = searchParams.get("date") ?? todayJst();
+  const month = monthParam ?? thisMonthJst();
 
-  const { orders, loading: ordersLoading } = useCompletedOrders(date);
+  const { orders: dayOrders, loading: dayOrdersLoading } = useCompletedOrders(date);
   const { closing, loading: closingLoading } = useDailyClosing(date);
-  const loading = ordersLoading || closingLoading;
+  const { orders: monthOrders, loading: monthOrdersLoading } = useMonthlyOrders(month);
+  const loading = isMonthly ? monthOrdersLoading : dayOrdersLoading || closingLoading;
 
-  const summary = closing
-    ? {
-        total_sales: closing.total_sales,
-        total_guests: closing.total_guests,
-        order_count: closing.order_count,
-        totals_by_method: closing.totals_by_method,
-        counts_by_method: closing.counts_by_method,
-        tax_breakdown: closing.tax_breakdown,
-      }
-    : summarizeOrders(orders);
+  const summary = isMonthly
+    ? summarizeOrders(monthOrders)
+    : closing
+      ? {
+          total_sales: closing.total_sales,
+          total_guests: closing.total_guests,
+          order_count: closing.order_count,
+          totals_by_method: closing.totals_by_method,
+          counts_by_method: closing.counts_by_method,
+          tax_breakdown: closing.tax_breakdown,
+        }
+      : summarizeOrders(dayOrders);
 
   const methodRows = PAYMENT_METHODS.filter((m) => (summary.totals_by_method[m as PaymentMethod] ?? 0) > 0);
   const credit = creditTotals(summary.totals_by_method);
+
+  const docTitle = isMonthly ? "月　計　表" : "日　計　表";
+  const periodLabel = isMonthly ? `対象月：${formatMonthJp(month)}` : `対象日：${formatDateJp(date)}`;
+  const previewLabel = isMonthly ? `${month} の月計表プレビュー` : `${date} の日計表プレビュー`;
 
   return (
     <>
@@ -53,9 +70,7 @@ export default function PrintReportView() {
       />
       <div className={styles.screen}>
         <div className={`${styles.toolbar} ${styles.noPrint}`}>
-          <span className={styles.toolbarText}>
-            {loading ? "読み込み中..." : `${date} の日計表プレビュー`}
-          </span>
+          <span className={styles.toolbarText}>{loading ? "読み込み中..." : previewLabel}</span>
           <button onClick={() => window.print()} className={styles.printButton} disabled={loading}>
             印刷 / PDF保存
           </button>
@@ -64,9 +79,9 @@ export default function PrintReportView() {
         <div className={styles.paper}>
           <div className={styles.head}>
             <div>
-              <div className={styles.docTitle}>日　計　表</div>
+              <div className={styles.docTitle}>{docTitle}</div>
               <div className={styles.shopline}>
-                {SHOP_NAME}　／　対象日：{formatDateJp(date)}
+                {SHOP_NAME}　／　{periodLabel}
               </div>
             </div>
           </div>

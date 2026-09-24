@@ -197,6 +197,14 @@ export default function ReportView() {
             </div>
           </section>
 
+          <Link
+            href={`/report/print?month=${month}`}
+            target="_blank"
+            className="rounded-full border border-zinc-300 bg-white px-4 py-3 text-center text-sm font-semibold text-zinc-600 shadow active:bg-zinc-100"
+          >
+            月計表を印刷 / PDF保存
+          </Link>
+
           <section>
             <h2 className="mb-2 text-sm font-semibold text-zinc-500">フード / ドリンク（{month}）</h2>
             <FoodDrinkSummary split={foodDrinkSplit} />
